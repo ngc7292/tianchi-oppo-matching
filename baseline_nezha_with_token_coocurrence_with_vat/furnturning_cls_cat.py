@@ -17,7 +17,7 @@ from torch.utils.data.dataset import Dataset
 from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader
 from sklearn.model_selection import StratifiedKFold
-from modeling_nezha import NeZhaForSequenceClassification
+from modeling_nezha import NeZhaForSequenceClassificationWithClSCat
 from configuration_nezha import NeZhaConfig
 from transformers import BertTokenizer, DataCollatorWithPadding
 
@@ -156,12 +156,12 @@ def train(model, attack_model, train_loader, optimizer, device, epoch=0, epochs=
             co_ocurrence_ids = batch['token_type_ids'].to(device)
 
             labels = batch['labels'].to(device)
-            loss, logits = model(input_ids, attention_mask, co_ocurrence_ids=co_ocurrence_ids, labels=labels)[:2]
+            loss, logits = model(input_ids, attention_mask, co_ocurrence_ids=co_ocurrence_ids, labels=labels)
             loss.backward()
 
             if attack_model.name == "fgm":
                 attack_model.attack()
-                loss, logits = model(input_ids, attention_mask, co_ocurrence_ids=co_ocurrence_ids, labels=labels)[:2]
+                loss, logits = model(input_ids, attention_mask, co_ocurrence_ids=co_ocurrence_ids, labels=labels)
                 loss.backward()
                 attack_model.restore()  # 恢复embedding参数
             elif attack_model.name == "pgd":
@@ -173,8 +173,7 @@ def train(model, attack_model, train_loader, optimizer, device, epoch=0, epochs=
                         model.zero_grad()
                     else:
                         attack_model.restore_grad()
-                    loss_adv, logits = model(input_ids, attention_mask, co_ocurrence_ids=co_ocurrence_ids,
-                                             labels=labels)[:2]
+                    loss_adv, logits = model(input_ids, attention_mask, co_ocurrence_ids=co_ocurrence_ids, labels=labels)
                     loss_adv.backward()  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
                 attack_model.restore()  # 恢复embedding参数
             else:
@@ -235,10 +234,8 @@ def run():
     lr = 1e-5
     batch_size = 64
     n_split = 5
-    fold_path = "./kfold-7"
+    fold_path = "./kfold-9"
 
-    # 是否使用共现embedding
-    is_co_ocurrence = False
 
     model_name_or_path = "/remote-home/zyfei/project/tianchi/baseline_nezha_with_token_coocurrence/output/checkpoint-30000"
     tokenizer = BertTokenizer(vocab_file=vocab_file)
@@ -297,7 +294,7 @@ def run():
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=data_collator)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, collate_fn=data_collator)
 
-        model = NeZhaForSequenceClassification.from_pretrained(model_name_or_path, config=config)
+        model = NeZhaForSequenceClassificationWithClSCat.from_pretrained(model_name_or_path, config=config)
         model.is_co_ocurrence = False
         model.to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -314,7 +311,6 @@ def run():
             if auc > best_auc:
                 best_auc = auc
                 model.save_pretrained(current_fold_path)
-                # torch.save(model.state_dict(), current_fold_path)
         print(f'best auc:{best_auc}')
 
 

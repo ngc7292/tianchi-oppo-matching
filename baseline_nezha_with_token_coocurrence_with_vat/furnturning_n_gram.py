@@ -21,16 +21,12 @@ from modeling_nezha import NeZhaForSequenceClassification
 from configuration_nezha import NeZhaConfig
 from transformers import BertTokenizer, DataCollatorWithPadding
 
-# 是否使用共现embedding
-is_co_ocurrence = True
-
 
 class MatchingDataset(torch.utils.data.Dataset):
     def __init__(self, texts, labels, tokenizer):
         self.texts = texts
         self.labels = labels
         self.tokenizer = tokenizer
-        self.is_co_ocurrence = "co_ocurrence_ids" in tokenizer.model_input_names
 
     def __getitem__(self, idx):
         text = self.texts[idx][0] + ' [SEP] ' + self.texts[idx][1]
@@ -48,8 +44,7 @@ class MatchingDataset(torch.utils.data.Dataset):
         if isinstance(self.labels, np.ndarray):
             examples['labels'] = torch.tensor(self.labels[idx], dtype=torch.long)
 
-        if self.is_co_ocurrence is True:
-            examples['token_type_ids'] = co_ocurrence_list
+        examples['token_type_ids'] = co_ocurrence_list
 
         return examples
 
@@ -240,11 +235,13 @@ def run():
     lr = 1e-5
     batch_size = 64
     n_split = 5
-    fold_path = "./kfold-5"
+    fold_path = "./kfold-7"
+
+    # 是否使用共现embedding
+    is_co_ocurrence = False
 
     model_name_or_path = "/remote-home/zyfei/project/tianchi/baseline_nezha_with_token_coocurrence/output/checkpoint-30000"
-    tokenizer = BertTokenizer(vocab_file=vocab_file,
-                              model_input_names=["input_ids", "token_type_ids", "attention_mask", "co_ocurrence_ids"])
+    tokenizer = BertTokenizer(vocab_file=vocab_file)
     config = NeZhaConfig.from_pretrained(model_name_or_path, num_labels=2, output_hidden_states=True)
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -301,11 +298,12 @@ def run():
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True, collate_fn=data_collator)
 
         model = NeZhaForSequenceClassification.from_pretrained(model_name_or_path, config=config)
+        model.is_co_ocurrence = False
         model.to(device)
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
-        # attack_model = FGM(model)
-        attack_model = PGD(model)
+        attack_model = FGM(model)
+        # attack_model = PGD(model)
 
         best_auc = 0
         current_fold_path = os.path.join(fold_path, f'fold_co_{i}')

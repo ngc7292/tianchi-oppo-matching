@@ -182,8 +182,8 @@ class NeZhaSelfAttention(nn.Module):
         self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
 
         self.relative_positions_encoding = relative_position_encoding(max_length=config.max_position_embeddings,
-                                                                     depth=self.attention_head_size,
-                                                                     max_relative_position=config.max_relative_position)
+                                                                      depth=self.attention_head_size,
+                                                                      max_relative_position=config.max_relative_position)
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
@@ -406,10 +406,6 @@ class NeZhaPreTrainedModel(PreTrainedModel):
             module.bias.data.zero_()
 
 
-@add_start_docstrings(
-    "The bare Bert Model transformer outputting raw hidden-states without any specific head on top.",
-    BERT_START_DOCSTRING,
-)
 class NeZhaModel(NeZhaPreTrainedModel):
     """
     The model can behave as an encoder (with only self-attention) as well
@@ -426,12 +422,13 @@ class NeZhaModel(NeZhaPreTrainedModel):
 
     """
 
-    def __init__(self, config):
+    def __init__(self, config, is_co_ocurrence=False):
         super().__init__(config)
         self.config = config
         self.embeddings = NeZhaEmbeddings(config)
         self.encoder = NeZhaEncoder(config)
         self.pooler = BertPooler(config)
+        self.is_co_ocurrence = is_co_ocurrence
         self.init_weights()
 
     def get_input_embeddings(self):
@@ -546,10 +543,10 @@ class NeZhaModel(NeZhaPreTrainedModel):
         )
         # todo: adding token level feature
         # we want to use it in fineturning stage
-        if co_ocurrence_ids is not None:
+        if self.is_co_ocurrence:
             batch_size, seq_len, vocab_size = embedding_output.shape
             co_ocurrence_ids = co_ocurrence_ids.reshape([batch_size, seq_len, 1])
-            co_ocurrence_ids = co_ocurrence_ids.repeat(1,1,vocab_size)
+            co_ocurrence_ids = co_ocurrence_ids.repeat(1, 1, vocab_size)
             embedding_output += co_ocurrence_ids
 
         encoder_outputs = self.encoder(
@@ -562,15 +559,11 @@ class NeZhaModel(NeZhaPreTrainedModel):
         sequence_output = encoder_outputs[0]
         pooled_output = self.pooler(sequence_output)
 
-        outputs = (sequence_output, pooled_output,) + encoder_outputs[1:]  # add hidden_states and attentions if they are here
+        outputs = (sequence_output, pooled_output,) + encoder_outputs[
+                                                      1:]  # add hidden_states and attentions if they are here
         return outputs  # sequence_output, pooled_output, (hidden_states), (attentions)
 
 
-@add_start_docstrings(
-    """Bert Model with two heads on top as done during the pre-training: a `masked language modeling` head and
-    a `next sentence prediction (classification)` head. """,
-    BERT_START_DOCSTRING,
-)
 class NeZhaForPreTraining(NeZhaPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
@@ -664,7 +657,6 @@ class NeZhaForPreTraining(NeZhaPreTrainedModel):
         return outputs  # (loss), prediction_scores, seq_relationship_score, (hidden_states), (attentions)
 
 
-@add_start_docstrings("""Bert Model with a `language modeling` head on top. """, BERT_START_DOCSTRING)
 class NeZhaForMaskedLM(NeZhaPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
@@ -783,9 +775,6 @@ class NeZhaForMaskedLM(NeZhaPreTrainedModel):
         return {"input_ids": input_ids, "attention_mask": attention_mask}
 
 
-@add_start_docstrings(
-    """Bert Model with a `next sentence prediction (classification)` head on top. """, BERT_START_DOCSTRING,
-)
 class NeZhaForNextSentencePrediction(NeZhaPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
@@ -862,20 +851,14 @@ class NeZhaForNextSentencePrediction(NeZhaPreTrainedModel):
         return outputs  # (next_sentence_loss), seq_relationship_score, (hidden_states), (attentions)
 
 
-@add_start_docstrings(
-    """Bert Model transformer with a sequence classification/regression head on top (a linear layer on top of
-    the pooled output) e.g. for GLUE tasks. """,
-    BERT_START_DOCSTRING,
-)
 class NeZhaForSequenceClassification(NeZhaPreTrainedModel):
-    def __init__(self, config, is_co_ocrrence=False):
+    def __init__(self, config, is_co_ocurrence=False):
         super().__init__(config)
         self.num_labels = config.num_labels
-        self.bert = NeZhaModel(config)
+        self.bert = NeZhaModel(config, is_co_ocurrence=is_co_ocurrence)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
         self.init_weights()
-        self.is_co_ocurrence = is_co_ocrrence
 
     @add_start_docstrings_to_model_forward(BERT_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     def forward(
@@ -958,11 +941,107 @@ class NeZhaForSequenceClassification(NeZhaPreTrainedModel):
         return outputs  # (loss), logits, (hidden_states), (attentions)
 
 
-@add_start_docstrings(
-    """Bert Model with a multiple choice classification head on top (a linear layer on top of
-    the pooled output and a softmax) e.g. for RocStories/SWAG tasks. """,
-    BERT_START_DOCSTRING,
-)
+class NeZhaForSequenceClassificationWithClSCat(NeZhaPreTrainedModel):
+    def __init__(self, config, is_co_ocurrence=False):
+        super().__init__(config)
+        self.num_labels = config.num_labels
+        self.bert = NeZhaModel(config, is_co_ocurrence=is_co_ocurrence)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+        self.init_weights()
+
+    @add_start_docstrings_to_model_forward(BERT_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
+    def forward(
+            self,
+            input_ids=None,
+            attention_mask=None,
+            token_type_ids=None,
+            head_mask=None,
+            inputs_embeds=None,
+            labels=None,
+            co_ocurrence_ids=None
+    ):
+        r"""
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`, defaults to :obj:`None`):
+            Labels for computing the sequence classification/regression loss.
+            Indices should be in :obj:`[0, ..., config.num_labels - 1]`.
+            If :obj:`config.num_labels == 1` a regression loss is computed (Mean-Square loss),
+            If :obj:`config.num_labels > 1` a classification loss is computed (Cross-Entropy).
+
+    Returns:
+        :obj:`tuple(torch.FloatTensor)` comprising various elements depending on the configuration (:class:`~transformers.BertConfig`) and inputs:
+        loss (:obj:`torch.FloatTensor` of shape :obj:`(1,)`, `optional`, returned when :obj:`label` is provided):
+            Classification (or regression if config.num_labels==1) loss.
+        logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, config.num_labels)`):
+            Classification (or regression if config.num_labels==1) scores (before SoftMax).
+        hidden_states (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``config.output_hidden_states=True``):
+            Tuple of :obj:`torch.FloatTensor` (one for the output of the embeddings + one for the output of each layer)
+            of shape :obj:`(batch_size, sequence_length, hidden_size)`.
+
+            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
+        attentions (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``config.output_attentions=True``):
+            Tuple of :obj:`torch.FloatTensor` (one for each layer) of shape
+            :obj:`(batch_size, num_heads, sequence_length, sequence_length)`.
+
+            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
+            heads.
+
+    Examples::
+
+        from transformers import BertTokenizer, BertForSequenceClassification
+        import torch
+
+        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        model = BertForSequenceClassification.from_pretrained('bert-base-uncased')
+
+        input_ids = torch.tensor(tokenizer.encode("Hello, my dog is cute", add_special_tokens=True)).unsqueeze(0)  # Batch size 1
+        labels = torch.tensor([1]).unsqueeze(0)  # Batch size 1
+        outputs = model(input_ids, labels=labels)
+
+        loss, logits = outputs[:2]
+
+        """
+
+        outputs = self.bert(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            co_ocurrence_ids=co_ocurrence_ids
+        )
+
+        pooled_output = outputs[1]
+        # 合并部分layer cls
+        all_hidden_states = outputs[2]
+        # pooled_output = torch.tensor([], device=input_ids.device)
+        batch_size, _ , hidden_dim = all_hidden_states[0].shape
+        pooled_output = torch.zeros([batch_size, hidden_dim], device=self.device)
+        for i in range(1, len(all_hidden_states)):
+            cls_state = all_hidden_states[i][:, 0, :]
+            # pooled_output = torch.cat([pooled_output, cls_state], dim=-1)
+            pooled_output = pooled_output + cls_state
+
+        # print(pooled_output)
+
+        pooled_output = self.dropout(pooled_output)
+        logits = self.classifier(pooled_output)
+
+        outputs = (logits,)
+
+        if labels is not None:
+            if self.num_labels == 1:
+                #  We are doing regression
+                loss_fct = MSELoss()
+                loss = loss_fct(logits.view(-1), labels.view(-1))
+            else:
+                loss_fct = CrossEntropyLoss()
+                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+            outputs = (loss,) + outputs
+
+        return outputs  # (loss), logits
+
+
 class NeZhaForMultipleChoice(NeZhaPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
@@ -1053,11 +1132,6 @@ class NeZhaForMultipleChoice(NeZhaPreTrainedModel):
         return outputs  # (loss), reshaped_logits, (hidden_states), (attentions)
 
 
-@add_start_docstrings(
-    """Bert Model with a token classification head on top (a linear layer on top of
-    the hidden-states output) e.g. for Named-Entity-Recognition (NER) tasks. """,
-    BERT_START_DOCSTRING,
-)
 class NeZhaForTokenClassification(NeZhaPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
@@ -1147,11 +1221,6 @@ class NeZhaForTokenClassification(NeZhaPreTrainedModel):
         return outputs  # (loss), scores, (hidden_states), (attentions)
 
 
-@add_start_docstrings(
-    """Bert Model with a span classification head on top for extractive question-answering tasks like SQuAD (a linear
-    layers on top of the hidden-states output to compute `span start logits` and `span end logits`). """,
-    BERT_START_DOCSTRING,
-)
 class NeZhaForQuestionAnswering(NeZhaPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
@@ -1255,4 +1324,3 @@ class NeZhaForQuestionAnswering(NeZhaPreTrainedModel):
             outputs = (total_loss,) + outputs
 
         return outputs  # (loss), start_logits, end_logits, (hidden_states), (attentions)
-
