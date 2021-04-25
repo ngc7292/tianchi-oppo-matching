@@ -444,6 +444,7 @@ def run():
     elif model_type == "clscat":
         # cat cls to classifier
         config = BertConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
+        config.classifier_dropout_prob = 0.3
         model = BertForSequenceClassificationWithClsCat.from_pretrained(model_name_or_path, config=config)
     else:
         raise NotImplementedError

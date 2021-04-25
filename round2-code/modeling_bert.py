@@ -203,9 +203,9 @@ class BertEmbeddings(nn.Module):
 
         embeddings = inputs_embeds + token_type_embeddings
 
-        if co_ocurrence_ids:
-            co_ocurrence_embedings = self.co_ocurrence_embedings(co_ocurrence_ids)
-            embeddings = embeddings + co_ocurrence_embedings
+        if co_ocurrence_ids is not None:
+            co_ocurrence_embeddings = self.co_ocurrence_embeddings(co_ocurrence_ids)
+            embeddings = embeddings + co_ocurrence_embeddings
 
         if self.position_embedding_type == "absolute":
             position_embeddings = self.position_embeddings(position_ids)
@@ -908,6 +908,7 @@ class BertModel(BertPreTrainedModel):
             head_mask=head_mask,
             encoder_hidden_states=encoder_hidden_states,
             encoder_attention_mask=encoder_extended_attention_mask,
+            output_hidden_states=self.config.output_hidden_states
         )
         sequence_output = encoder_outputs[0]
         if poolers is None:
@@ -1257,7 +1258,7 @@ class BertForSequenceClassificationWithClsCat(BertPreTrainedModel):
         self.poolers = nn.ModuleList([BertPooler(config) for _ in range(config.num_hidden_layers)])
 
         # mutil-dropout
-        self.dropout_num = 8
+        self.dropout = 8
         self.dropouts = nn.ModuleList([nn.Dropout(config.classifier_dropout_prob) for _ in range(self.dropout)])
 
         self.classifier = nn.Linear(config.hidden_size * config.num_hidden_layers, config.num_labels)
@@ -1306,7 +1307,8 @@ class BertForSequenceClassificationWithClsCat(BertPreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
-            co_ocurrence_ids=co_ocurrence_ids
+            co_ocurrence_ids=co_ocurrence_ids,
+            poolers=self.poolers
         )
 
         pooled_output = outputs[1]
