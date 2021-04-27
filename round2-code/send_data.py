@@ -17,9 +17,10 @@ from sklearn.metrics import roc_auc_score
 
 def send_eval(data_json, log):
     url = "http://127.0.0.1:8080/tccapi"
-    start = time.time()
     try:
+        start = time.time()
         res = requests.post(url=url, data=data_json)
+        cost_time = time.time() - start
         res = json.loads(res.text)
         # res = json.dumps(res_batch)
     except Exception as e:
@@ -35,7 +36,6 @@ def send_eval(data_json, log):
             res_elem["msg"] = "get result from tccapi failed, set default predict to 0"
             res_batch["results"].append(res_elem)
         res = json.dumps(res_batch)
-    cost_time = time.time() - start
     return res, cost_time
 
 

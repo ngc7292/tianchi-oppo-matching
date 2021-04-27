@@ -1337,7 +1337,7 @@ class BertForSequenceClassificationWithClsCat(BertPreTrainedModel):
                         loss_fct = CrossEntropyLoss()
                         loss = loss + loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
 
-            logits_temp = logits_temp / self.dropout_num
+            logits_temp = logits_temp / self.dropout
             outputs = (logits_temp,)
 
             if labels is not None:

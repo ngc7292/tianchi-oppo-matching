@@ -1,30 +1,29 @@
 # -*- coding: utf-8 -*-
 """
+__title__="convert_ensamble_to_onnx"
+__author__="ngc7293"
+__mtime__="2021/4/26"
+"""
+
+# -*- coding: utf-8 -*-
+"""
 __title__="convert_pytorch_to_onnx"
 __author__="ngc7293"
 __mtime__="2021/4/21"
 """
-import torch
 import torch.onnx
-from modeling_nezha import NeZhaForSequenceClassificationWithHeadClass, NeZhaForSequenceClassificationWithClsCat, \
-    NeZhaForSequenceClassificationWithHeadClassMD
-from configuration_nezha import NeZhaConfig
 
-from modeling_bert import BertConfig, BertForSequenceClassificationWithClsCat
-
+from modeling_ensamble import EnsambleModel
 from transformers import BertTokenizer
 
 device = torch.device('cuda:0')  # if torch.cuda.is_available() else torch.device('cpu')
 
-model_name_or_path = "./model_17"
 tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1"
-# tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/macbert_base_output_without_round1"
 
-config = NeZhaConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
-model = NeZhaForSequenceClassificationWithClsCat.from_pretrained(model_name_or_path, config=config)
+nezha_name_or_path = "./model_19"
+macbert_name_or_path = "./model_22"
 
-# config = BertConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
-# model = BertForSequenceClassificationWithClsCat.from_pretrained(model_name_or_path, config=config)
+model = EnsambleModel(macbert_path=macbert_name_or_path, nezha_path=nezha_name_or_path)
 
 tokenizer = BertTokenizer.from_pretrained(tokenizer_file)
 model.to(device)
@@ -56,7 +55,7 @@ input_dict = (torch.tensor([sample.input_ids], device=device),
 input_names = ["input_ids", "token_type_ids", "co_ocurrence_ids"]
 output_names = ["logtis"]
 
-torch.onnx.export(model, input_dict, "nezha-base-17-co.onnx", verbose=True, input_names=input_names,
+torch.onnx.export(model, input_dict, "nezha-base-ensamble-co.onnx", verbose=True, input_names=input_names,
                   output_names=output_names, dynamic_axes={'input_ids': {0: 'batch_size', 1: 'sequence'},
                                                            'token_type_ids': {0: 'batch_size', 1: 'sequence'},
                                                            'co_ocurrence_ids': {0: 'batch_size', 1: 'sequence'}},

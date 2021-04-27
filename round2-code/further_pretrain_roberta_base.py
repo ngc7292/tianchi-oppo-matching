@@ -14,8 +14,8 @@ from typing import Dict
 from fastNLP import cache_results
 from transformers import BertTokenizer, PreTrainedTokenizer
 from torch.utils.data.dataset import Dataset
-from modeling_bert import BertForMaskedLM
-from transformers.models.bert.configuration_bert import BertConfig
+from modeling_roberta import RobertaForMaskedLM
+from modeling_roberta import RobertaConfig
 from transformers import Trainer, TrainingArguments
 
 from transformers import AlbertForSequenceClassification
@@ -29,7 +29,7 @@ raw_text = '/remote-home/zyfei/project/tianchi/round2-code/raw_text/raw_text_rob
 
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/output/nezha-pretrained-round1/checkpoint-30000"
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_output_with_label"
-model_name_or_path = "/remote-home/zyfei/project/tianchi/models/chinese-roberta-base"
+model_name_or_path = "/remote-home/zyfei/project/tianchi/models/chinese-roberta-wwm-ext"
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_with_label_2/checkpoint-10000"
 new_model_path = "/remote-home/zyfei/project/tianchi/model_output/roberta_base_output_without_round1"
 
@@ -72,7 +72,7 @@ class LineByLineTextDataset(Dataset):
 
 
 # using cache_result increase speed of loadding data if want to change cache use _refresh=True
-@cache_results(_cache_fp=cache_path, _refresh=True)
+@cache_results(_cache_fp=cache_path, _refresh=False)
 def load_data(data_tokenizer, raw_text_path):
     return LineByLineTextDataset(
         tokenizer=data_tokenizer,
@@ -84,8 +84,8 @@ def load_data(data_tokenizer, raw_text_path):
 tokenizer = BertTokenizer(vocab_file=vocab_file)
 
 # 转移权重
-config = BertConfig.from_pretrained(model_name_or_path)
-model = BertForMaskedLM.from_pretrained(model_name_or_path)
+config = RobertaConfig.from_pretrained(model_name_or_path)
+model = RobertaForMaskedLM.from_pretrained(model_name_or_path)
 model.resize_token_embeddings(tokenizer.vocab_size)
 
 # pretrained_dict = torch.load("/remote-home/zyfei/project/tianchi/output/nezha-pretrained-round1/checkpoint-30000/pytorch_model.bin")
@@ -122,11 +122,12 @@ data_collator = DataCollatorForLanguageModelingNgram(
 training_args = TrainingArguments(
     output_dir=new_model_path,
     overwrite_output_dir=True,
-    num_train_epochs=300,
+    num_train_epochs=150,
     per_device_train_batch_size=256,
     save_steps=5_000,
     learning_rate=5e-5,
-    dataloader_num_workers=8
+    max_steps=60000,
+    dataloader_num_workers=16
 )
 
 trainer = Trainer(

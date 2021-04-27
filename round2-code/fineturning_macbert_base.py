@@ -378,9 +378,9 @@ def run():
 
     args.add_argument("--epoches", type=int, default=10)
     args.add_argument("--batch_size", type=int, default=128)
-    args.add_argument("--fold_name", default="./model_20")
+    args.add_argument("--fold_name", default="./model_23")
     args.add_argument("--evalution_method", default="auc")
-    args.add_argument("--attack_method", default="fgm")
+    args.add_argument("--attack_method", default="freelb")
     args.add_argument("--model_type", default="clscat")
     args.add_argument("--data_enhance", action='store_true')
 
@@ -402,7 +402,7 @@ def run():
     # fitlog.add_hyper(fold_path, "fold_path")  # 记录本文件中写死的超参数
     # fitlog.add_hyper("no co_ocurrence", "attention")
 
-    random_seed = 2021
+    random_seed = 42
     random.seed(random_seed)
     np.random.seed(random_seed)
     torch.random.manual_seed(random_seed)

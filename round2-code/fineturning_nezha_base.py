@@ -299,7 +299,8 @@ def train(model, attack_model, train_dataset, optimizer, device, epoch=0, epochs
                         if attack_model.adv_max_norm > 0:
                             delta_norm = torch.norm(delta.view(delta.size(0), -1).float(), p=2, dim=1).detach()
                             exceed_mask = (delta_norm > attack_model.adv_max_norm).to(embeds_init)
-                            reweights = (attack_model.adv_max_norm / delta_norm * exceed_mask + (1 - exceed_mask)).view(-1, 1, 1)
+                            reweights = (attack_model.adv_max_norm / delta_norm * exceed_mask + (1 - exceed_mask)).view(
+                                -1, 1, 1)
                             delta = (delta * reweights).detach()
                         embeds_init = model.bert.embeddings(input_ids=input_ids, token_type_ids=token_type_ids,
                                                             co_ocurrence_ids=co_ocurrence_ids)
@@ -373,16 +374,21 @@ def run():
     transformers.logging.set_verbosity_error()
     args = argparse.ArgumentParser()
 
+    # args.add_argument("--train_path",
+    #                   default="/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv")
+    # args.add_argument("--test_path",
+    #                   default="/remote-home/zyfei/project/tianchi/round2-code/data/dev_data.tsv")
+
     args.add_argument("--train_path",
-                      default="/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv")
+                      default="./data/train.tsv")
     args.add_argument("--test_path",
-                      default="/remote-home/zyfei/project/tianchi/data/gaiic_track3_round1_train_20210228.tsv")
+                      default="./data/dev.tsv")
 
     args.add_argument("--epoches", type=int, default=10)
     args.add_argument("--batch_size", type=int, default=128)
-    args.add_argument("--fold_name", default="./model_19")
+    args.add_argument("--fold_name", default="./model_28")
     args.add_argument("--evalution_method", default="auc")
-    args.add_argument("--attack_method", default="freelb")
+    args.add_argument("--attack_method", default="fgm")
     args.add_argument("--model_type", default="clscat")
     args.add_argument("--data_enhance", action='store_true')
 
@@ -404,7 +410,7 @@ def run():
     # fitlog.add_hyper(fold_path, "fold_path")  # 记录本文件中写死的超参数
     # fitlog.add_hyper("no co_ocurrence", "attention")
 
-    random_seed = 2021
+    random_seed = 42
     random.seed(random_seed)
     np.random.seed(random_seed)
     torch.random.manual_seed(random_seed)
@@ -424,18 +430,17 @@ def run():
     # train_dataset = load_data_fastnlp(train_path, tokenizer, _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-17-with-label-fineturning-train", _refresh=False)
     if args.data_enhance:
         train_dataset = load_data_fastnlp_enhance(train_path, tokenizer,
-                                                  _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-17-with-label-fineturning-train-enhance",
-                                                  _refresh=False)
+                                                  _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-26-with-label-fineturning-train-enhance",
+                                                  _refresh=True)
     else:
         train_dataset = load_data_fastnlp(train_path, tokenizer,
-                                          _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-17-with-label-fineturning-train",
-                                          _refresh=False)
+                                          _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-26-with-label-fineturning-train",
+                                          _refresh=True)
 
-    print(train_dataset.get_length())
     train_dataset.print_field_meta()
     dev_dataset = load_data_fastnlp(test_path, tokenizer,
-                                    _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-17-with-label-fineturning-dev",
-                                    _refresh=False)
+                                    _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-26-with-label-fineturning-dev",
+                                    _refresh=True)
 
     if model_type == "headwithmd":
         # NeZhaLabelHead for classifier with mutil dropout
@@ -455,7 +460,7 @@ def run():
     fitlog.add_hyper(model_type, "model")
     model.to(device)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.1)
 
     if args.attack_method == "fgm":
         attack_model = FGM(model)
