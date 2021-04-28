@@ -57,7 +57,7 @@ if __name__ == '__main__':
 
     samples, labels = load_data_fastnlp(train_path)
 
-    train_samples, test_samples, train_labels, test_labels = train_test_split(samples, labels, test_size=50000, random_state=2021, shuffle=True)
+    train_samples, test_samples, train_labels, test_labels = train_test_split(samples, labels, test_size=500, random_state=2021, shuffle=True)
 
     count = 1
     times = []

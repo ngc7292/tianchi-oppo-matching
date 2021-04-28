@@ -24,9 +24,7 @@ from fastNLP.core.metrics import AccuracyMetric
 from sklearn.metrics import roc_auc_score, accuracy_score
 # from sklearn.model_selection import StratifiedKFold
 # from sklearn.model_selection import train_test_split
-from modeling_nezha import NeZhaForSequenceClassificationWithHeadClass, NeZhaForSequenceClassificationWithHeadClassMD, \
-    NeZhaForSequenceClassificationWithClsCat
-from configuration_nezha import NeZhaConfig
+from modeling_roberta import RobertaForSequenceClassificationWithClsCat, RobertaConfig
 from transformers import BertTokenizer
 
 fitlog.set_log_dir("/remote-home/zyfei/project/tianchi/round2-code/logs")
@@ -257,13 +255,13 @@ def train(model, attack_model, train_dataset, optimizer, device, epoch=0, epochs
                         loss_adv.backward()  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
                     attack_model.restore()  # 恢复embedding参数
             elif attack_model.name == "freelb":
-                if epoch <= 5:
+                if epoch <= 0:
                     loss, logits = model(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids,
                                          co_ocurrence_ids=co_ocurrence_ids, labels=labels)[:2]
                     loss.backward()
-                elif epoch > 5:
+                elif epoch > 0:
                     # init delta
-                    embeds_init = model.bert.embeddings(input_ids=input_ids, token_type_ids=token_type_ids,
+                    embeds_init = model.roberta.embeddings(input_ids=input_ids, token_type_ids=token_type_ids,
                                                         co_ocurrence_ids=co_ocurrence_ids)
                     if attack_model.adv_init_mag > 0:
                         input_mask = attention_mask
@@ -307,7 +305,7 @@ def train(model, attack_model, train_dataset, optimizer, device, epoch=0, epochs
                             reweights = (attack_model.adv_max_norm / delta_norm * exceed_mask + (1 - exceed_mask)).view(
                                 -1, 1, 1)
                             delta = (delta * reweights).detach()
-                        embeds_init = model.bert.embeddings(input_ids=input_ids, token_type_ids=token_type_ids,
+                        embeds_init = model.roberta.embeddings(input_ids=input_ids, token_type_ids=token_type_ids,
                                                             co_ocurrence_ids=co_ocurrence_ids)
             elif attack_model.name == "none":
                 # not use attack to use mutil dropout
@@ -427,7 +425,7 @@ def run():
     fitlog.add_hyper(random_seed, "random_seed")
 
     model_output_path = "/remote-home/zyfei/project/tianchi/model_output/"
-    checkpoint = "nezha_base_output_without_round1/checkpoint-50000"
+    checkpoint = "roberta_base_output_without_round1/checkpoint-60000"
     model_name_or_path = os.path.join(model_output_path, checkpoint)
     fitlog.add_hyper(checkpoint, "model_name_or_path")
 
@@ -453,16 +451,15 @@ def run():
 
     if model_type == "headwithmd":
         # NeZhaLabelHead for classifier with mutil dropout
-        config = NeZhaConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
-        model = NeZhaForSequenceClassificationWithHeadClassMD.from_pretrained(model_name_or_path, config=config)
+        raise NotImplementedError
     elif model_type == "head":
         # only use NeZhaLabelHead for classifier
-        config = NeZhaConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
-        model = NeZhaForSequenceClassificationWithHeadClass.from_pretrained(model_name_or_path, config=config)
+        raise NotImplementedError
     elif model_type == "clscat":
         # cat cls to classifier
-        config = NeZhaConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
-        model = NeZhaForSequenceClassificationWithClsCat.from_pretrained(model_name_or_path, config=config)
+        config = RobertaConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
+        config.classifier_dropout_prob = 0.3
+        model = RobertaForSequenceClassificationWithClsCat.from_pretrained(model_name_or_path, config=config)
     else:
         raise NotImplementedError
 

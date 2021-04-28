@@ -22,7 +22,7 @@ def to_numpy(tensor):
 
 device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
 
-model_name_or_path = "./model_14"
+model_name_or_path = "./model_28"
 tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1"
 
 config = NeZhaConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
@@ -46,7 +46,7 @@ input_ids = torch.tensor([sample.input_ids], device=device)
 token_type_ids = torch.tensor([sample.token_type_ids], device=device)
 co_ocurrence_ids = torch.tensor([co_ocurrence_list], device=device)
 
-ort_session = onnxruntime.InferenceSession("nezha-base-14-co.onnx")
+ort_session = onnxruntime.InferenceSession("model-28-co.onnx")
 
 ort_inputs = {ort_session.get_inputs()[0].name: to_numpy(input_ids),
               ort_session.get_inputs()[1].name: to_numpy(token_type_ids),

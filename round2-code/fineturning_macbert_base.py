@@ -111,6 +111,11 @@ class FreeLB():
         self.adv_max_norm = 1
 
 
+class NoneAttack():
+    def __init__(self):
+        self.name = 'none'
+
+
 def tokenize_data(text_1, text_2, tokenizer):
     sentence_list1, sentence_list2 = text_1.strip().split(" "), text_2.strip().split(
         " ")
@@ -250,11 +255,11 @@ def train(model, attack_model, train_dataset, optimizer, device, epoch=0, epochs
                         loss_adv.backward()  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
                     attack_model.restore()  # 恢复embedding参数
             elif attack_model.name == "freelb":
-                if epoch <= 3:
+                if epoch <= 5:
                     loss, logits = model(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids,
                                          co_ocurrence_ids=co_ocurrence_ids, labels=labels)[:2]
                     loss.backward()
-                elif epoch > 3:
+                elif 5 < epoch <= 16:
                     # init delta
                     embeds_init = model.bert.embeddings(input_ids=input_ids, token_type_ids=token_type_ids,
                                                         co_ocurrence_ids=co_ocurrence_ids)
@@ -301,7 +306,16 @@ def train(model, attack_model, train_dataset, optimizer, device, epoch=0, epochs
                             delta = (delta * reweights).detach()
                         embeds_init = model.bert.embeddings(input_ids=input_ids, token_type_ids=token_type_ids,
                                                             co_ocurrence_ids=co_ocurrence_ids)
-
+                else:
+                    model.set_attack(False)
+                    loss, logits = model(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids,
+                                         co_ocurrence_ids=co_ocurrence_ids, labels=labels)[:2]
+                    loss.backward()
+            elif attack_model.name == "none":
+                # not use attack to use mutil dropout
+                loss, logits = model(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids,
+                                     co_ocurrence_ids=co_ocurrence_ids, labels=labels)[:2]
+                loss.backward()
             else:
                 raise NotImplementedError
 
@@ -371,16 +385,20 @@ def run():
     transformers.logging.set_verbosity_error()
     args = argparse.ArgumentParser()
 
+    # args.add_argument("--train_path",
+    #                   default="/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv")
+    # args.add_argument("--test_path",
+    #                   default="/remote-home/zyfei/project/tianchi/data/gaiic_track3_round1_train_20210228.tsv")
     args.add_argument("--train_path",
-                      default="/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv")
+                      default="./data/train.tsv")
     args.add_argument("--test_path",
-                      default="/remote-home/zyfei/project/tianchi/data/gaiic_track3_round1_train_20210228.tsv")
+                      default="./data/dev.tsv")
 
     args.add_argument("--epoches", type=int, default=10)
     args.add_argument("--batch_size", type=int, default=128)
-    args.add_argument("--fold_name", default="./model_23")
+    args.add_argument("--fold_name", default="./model_30")
     args.add_argument("--evalution_method", default="auc")
-    args.add_argument("--attack_method", default="freelb")
+    args.add_argument("--attack_method", default="fgm")
     args.add_argument("--model_type", default="clscat")
     args.add_argument("--data_enhance", action='store_true')
 
@@ -422,17 +440,17 @@ def run():
     # train_dataset = load_data_fastnlp(train_path, tokenizer, _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-17-with-label-fineturning-train", _refresh=False)
     if args.data_enhance:
         train_dataset = load_data_fastnlp_enhance(train_path, tokenizer,
-                                                  _cache_fp="/remote-home/zyfei/project/tianchi/cache/macbert-4-17-with-label-fineturning-train-enhance",
+                                                  _cache_fp="/remote-home/zyfei/project/tianchi/cache/macbert-4-27-with-label-fineturning-train-enhance",
                                                   _refresh=False)
     else:
         train_dataset = load_data_fastnlp(train_path, tokenizer,
-                                          _cache_fp="/remote-home/zyfei/project/tianchi/cache/macbert-4-17-with-label-fineturning-train",
+                                          _cache_fp="/remote-home/zyfei/project/tianchi/cache/macbert-4-27-with-label-fineturning-train",
                                           _refresh=False)
 
     print(train_dataset.get_length())
     train_dataset.print_field_meta()
     dev_dataset = load_data_fastnlp(test_path, tokenizer,
-                                    _cache_fp="/remote-home/zyfei/project/tianchi/cache/macbert-4-17-with-label-fineturning-dev",
+                                    _cache_fp="/remote-home/zyfei/project/tianchi/cache/macbert-4-27-with-label-fineturning-dev",
                                     _refresh=False)
 
     if model_type == "headwithmd":
@@ -463,6 +481,8 @@ def run():
     elif args.attack_method == "freelb":
         attack_model = FreeLB()
         model.set_attack()
+    elif args.attack_method == "mutildrop":
+        attack_model = NoneAttack()
 
     else:
         raise NotImplementedError

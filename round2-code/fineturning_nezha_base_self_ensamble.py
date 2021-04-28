@@ -20,8 +20,8 @@ import argparse
 # from torch.utils.data import DataLoader
 from fastNLP import DataSet as FastNLPDataSet
 from fastNLP.core import Instance, DataSetIter, RandomSampler, cache_results
-from fastNLP.core.metrics import AccuracyMetric
 from sklearn.metrics import roc_auc_score, accuracy_score
+from sklearn.model_selection import StratifiedKFold
 # from sklearn.model_selection import StratifiedKFold
 # from sklearn.model_selection import train_test_split
 from modeling_nezha import NeZhaForSequenceClassificationWithHeadClass, NeZhaForSequenceClassificationWithHeadClassMD, \
@@ -135,7 +135,7 @@ def tokenize_data(text_1, text_2, tokenizer):
     }
 
 
-@cache_results(_cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-17-with-label-fineturning", _refresh=False)
+@cache_results(_cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-27-with-label-fineturning", _refresh=False)
 def load_data_fastnlp(path, tokenizer):
     ds = FastNLPDataSet()
     with open(path, encoding="utf-8") as f:
@@ -151,69 +151,49 @@ def load_data_fastnlp(path, tokenizer):
     return ds
 
 
-@cache_results(_cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-17-with-label-fineturning", _refresh=False)
-def load_data_fastnlp_enhance(path, tokenizer):
-    ds = FastNLPDataSet()
+class Tokenizer():
+    def __init__(self, tokenizer):
+        self.tokenizer = tokenizer
+
+    def tokenize(self, ins: Instance):
+        text_1 = ins["samples"][0]
+        text_2 = ins["samples"][1]
+        label = int(ins["label"])
+        data_1 = tokenize_data(text_1, text_2, self.tokenizer)
+
+        return {
+            "input_ids": data_1["input_ids"],
+            "token_type_ids": data_1["token_type_ids"],
+            "attention_mask": data_1["attention_mask"],
+            "co_ocurrence_ids": data_1["co_ocurrence_ids"],
+            "label": label
+        }
+
+
+@cache_results(_cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-27-with-label-fineturning-kfold",
+               _refresh=False)
+def load_data(path, tokenizer):
     samples = []
+    input_ids = []
+    token_type_ids = []
+    attention_masks = []
+    co_ocurrence_ids = []
+
     labels = []
     with open(path, encoding="utf-8") as f:
-        for line in tqdm.tqdm(f.read().splitlines(), leave=True):
+        for line in tqdm.tqdm(f.read().splitlines()):
             temp = line.split('\t')
-            if len(temp) > 2:
-                data_1 = tokenize_data(temp[0], temp[1], tokenizer)
-                ds.append(Instance(input_ids=data_1["input_ids"], token_type_ids=data_1["token_type_ids"],
-                                   attention_mask=data_1["attention_mask"],
-                                   co_ocurrence_ids=data_1["co_ocurrence_ids"],
-                                   label=int(temp[2])))
-                data_2 = tokenize_data(temp[1], temp[0], tokenizer)
-                ds.append(Instance(input_ids=data_2["input_ids"], token_type_ids=data_2["token_type_ids"],
-                                   attention_mask=data_2["attention_mask"],
-                                   co_ocurrence_ids=data_2["co_ocurrence_ids"],
-                                   label=int(temp[2])))
+            samples.append([temp[0], temp[1]])
+            labels.append(int(temp[2]))
 
-                samples.append([temp[0], temp[1]])
-                samples.append([temp[1], temp[0]])
-                labels.append(int(temp[2]))
+            data = tokenize_data(temp[0], temp[1], tokenizer)
+            input_ids.append(data["input_ids"])
+            token_type_ids.append(data["token_type_ids"])
+            attention_masks.append(data["attention_mask"])
+            co_ocurrence_ids.append(data["co_ocurrence_ids"])
 
-    pos_G = nx.Graph()
-    neg_G = nx.Graph()
-
-    for index, label in enumerate(labels):
-        if label == 1:
-            pos_G.add_edge(samples[index][0], samples[index][1])
-        else:
-            neg_G.add_edge(samples[index][0], samples[index][1])
-
-    pos_dataset = []
-    neg_dataset = []
-    for c in nx.connected_components(pos_G):
-        nodes = list(c)
-        for i in range(len(nodes)):
-            for j in range(i + 1, len(nodes)):
-                pos_dataset.append([nodes[i], nodes[j]])
-            if nodes[i] in neg_G:
-                for neiber_neg in neg_G.adj[nodes[i]]:
-                    for z in range(len(nodes)):
-                        if z != i:
-                            neg_dataset.append([neiber_neg, nodes[z]])
-
-    for text_1, text_2 in pos_dataset[:100000]:
-        data = tokenize_data(text_1, text_2, tokenizer)
-        ds.append(Instance(input_ids=data["input_ids"], token_type_ids=data["token_type_ids"],
-                           attention_mask=data["attention_mask"],
-                           co_ocurrence_ids=data["co_ocurrence_ids"],
-                           label=1))
-
-    for text_1, text_2 in neg_dataset[:100000]:
-        data = tokenize_data(text_1, text_2, tokenizer)
-        ds.append(Instance(input_ids=data["input_ids"], token_type_ids=data["token_type_ids"],
-                           attention_mask=data["attention_mask"],
-                           co_ocurrence_ids=data["co_ocurrence_ids"],
-                           label=0))
-
-    ds.set_input("input_ids", "token_type_ids", "attention_mask", "co_ocurrence_ids", "label")
-    ds.set_target("label")
-    return ds
+    return np.array(samples), np.array(input_ids), np.array(token_type_ids), np.array(attention_masks), np.array(
+        co_ocurrence_ids), np.array(labels)
 
 
 def train(model, attack_model, train_dataset, optimizer, device, epoch=0, epochs=0, batch_size=64):
@@ -400,6 +380,7 @@ def run():
     args.add_argument("--attack_method", default="fgm")
     args.add_argument("--model_type", default="clscat")
     args.add_argument("--data_enhance", action='store_true')
+    args.add_argument("--n_splits", type=int, default=5)
 
     args = args.parse_args()
     train_path = args.train_path
@@ -437,19 +418,15 @@ def run():
 
     # train_dataset, dev_dataset = load_data_fastnlp(train_path, tokenizer).split(0.3, shuffle=True)
     # train_dataset = load_data_fastnlp(train_path, tokenizer, _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-17-with-label-fineturning-train", _refresh=False)
-    if args.data_enhance:
-        train_dataset = load_data_fastnlp_enhance(train_path, tokenizer,
-                                                  _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-26-with-label-fineturning-train-enhance",
-                                                  _refresh=False)
-    else:
-        train_dataset = load_data_fastnlp(train_path, tokenizer,
-                                          _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-26-with-label-fineturning-train",
-                                          _refresh=False)
 
-    train_dataset.print_field_meta()
-    dev_dataset = load_data_fastnlp(test_path, tokenizer,
-                                    _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-26-with-label-fineturning-dev",
-                                    _refresh=False)
+    train_samples, train_input_ids, train_token_type_ids, train_attention_masks, train_co_ocurrence_ids, train_labels = load_data(
+        train_path, tokenizer=tokenizer,
+        _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-27-with-label-fineturning-train-self-enhance",
+        _refresh=False)
+
+    test_dataset = load_data_fastnlp(test_path, tokenizer,
+                                     _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-27-with-label-fineturning-dev-self-enhance",
+                                     _refresh=False)
 
     if model_type == "headwithmd":
         # NeZhaLabelHead for classifier with mutil dropout
@@ -491,25 +468,55 @@ def run():
     # fitlog.add_hyper(attack_model.name, "attack_model")
     tokenizer.save_pretrained(fold_path)
 
-    best_result = 0
-    best_model = None
-    for i in range(epochs):
-        train(model, attack_model, train_dataset, optimizer, device, i, epochs, batch_size)
-        if evalution_method == "auc":
-            result = evaluate(model, dev_dataset, device, batch_size)
-        else:
-            result = evaluate_acc(model, dev_dataset, device, batch_size)
-        print(f'epoch:{i},{evalution_method}:{result}')
-        fitlog.add_metric({"dev": {f"{evalution_method}": result}}, step=i)
-        if result > best_result:
-            best_result = result
-            best_model = model
-            best_model.save_pretrained(fold_path)
-            # torch.save(model.state_dict(), current_fold_path)
-    print(f'best result:{best_result}')
-    best_model.save_pretrained(fold_path)
+    skf = StratifiedKFold(n_splits=args.n_splits, random_state=42, shuffle=True)
 
-    fitlog.add_best_metric(str(best_result), evalution_method)
+    for fold, (train_index, val_index) in enumerate(skf.split(train_samples, train_labels)):
+        print("FOLD | ", fold + 1)
+        print("###" * 35)
+
+        train_data = {"samples": train_samples[train_index],
+                      "input_ids": train_input_ids[train_index],
+                      "token_type_ids": train_token_type_ids[train_index],
+                      "attention_mask": train_attention_masks[train_index],
+                      "co_ocurrence_ids": train_co_ocurrence_ids[train_index],
+                      "label": train_labels[train_index]}
+        train_dataset = FastNLPDataSet(train_data)
+        train_dataset.set_input("input_ids", "token_type_ids", "attention_mask", "co_ocurrence_ids", "label")
+        train_dataset.set_target("label")
+
+        dev_data = {"samples": train_samples[val_index],
+                    "input_ids": train_input_ids[val_index],
+                    "token_type_ids": train_token_type_ids[val_index],
+                    "attention_mask": train_attention_masks[val_index],
+                    "co_ocurrence_ids": train_co_ocurrence_ids[val_index],
+                    "label": train_labels[val_index]}
+        dev_dataset = FastNLPDataSet(dev_data)
+        dev_dataset.set_input("input_ids", "token_type_ids", "attention_mask", "co_ocurrence_ids", "label")
+        dev_dataset.set_target("label")
+
+        best_result = 0
+        current_fold_path = os.path.join(fold_path, f'fold_co_{fold + 1}')
+        for i in range(epochs):
+            train(model, attack_model, train_dataset, optimizer, device, i, epochs, batch_size)
+            if evalution_method == "auc":
+                result = evaluate(model, dev_dataset, device, batch_size)
+                test_result = evaluate(model,test_dataset, device, batch_size)
+            else:
+                result = evaluate_acc(model, dev_dataset, device, batch_size)
+                test_result = evaluate_acc(model,test_dataset, device, batch_size)
+
+            print(f'fold:{fold + 1}, epoch:{i}, dev {evalution_method}:{result}, test {evalution_method}:{test_result}')
+            fitlog.add_metric({"dev": {f"{fold + 1}-dev-{evalution_method}": result}}, step=i)
+            fitlog.add_metric({"dev": {f"{fold + 1}-test-{evalution_method}": test_result}}, step=i)
+
+            if test_result > best_result:
+                best_result = test_result
+                model.save_pretrained(current_fold_path)
+                # torch.save(model.state_dict(), current_fold_path)
+        print(f'fold:{fold + 1}, best test result:{best_result}')
+
+        fitlog.add_best_metric(str(best_result), f"fold-{fold + 1} {evalution_method}")
+
     fitlog.finish()
 
 

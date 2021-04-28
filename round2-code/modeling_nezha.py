@@ -1090,6 +1090,10 @@ class NeZhaForSequenceClassificationWithHeadClassMD(NeZhaPreTrainedModel):
         self.classifier = NeZhaLabelHead(config)
         self.dropouts = nn.ModuleList([nn.Dropout(config.classifier_dropout_prob) for _ in range(self.dropout_num)])
         self.init_weights()
+        self.is_attack = False
+
+    def set_attack(self, mode=True):
+        self.is_attack = mode
 
     def forward(
             self,
@@ -1153,35 +1157,47 @@ class NeZhaForSequenceClassificationWithHeadClassMD(NeZhaPreTrainedModel):
 
         pooled_output = outputs[1]
 
-        for i, dropout in enumerate(self.dropouts):
-            if i == 0:
-                pooled_output = dropout(pooled_output)
-                logits = self.classifier(pooled_output)
+        if not self.is_attack:
+            for i, dropout in enumerate(self.dropouts):
+                if i == 0:
+                    pooled_output = dropout(pooled_output)
+                    logits = self.classifier(pooled_output)
 
-                # outputs = (logits,)  # add hidden states and attention if they are here
-                logits_temp = logits
+                    # outputs = (logits,)  # add hidden states and attention if they are here
+                    logits_temp = logits
 
-                if labels is not None:
-                    loss_fct = CrossEntropyLoss()
-                    loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
-            else:
-                pooled_output = dropout(pooled_output)
-                logits = self.classifier(pooled_output)
+                    if labels is not None:
+                        loss_fct = CrossEntropyLoss()
+                        loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+                else:
+                    pooled_output = dropout(pooled_output)
+                    logits = self.classifier(pooled_output)
 
-                # outputs = (logits,)  # add hidden states and attention if they are here
+                    # outputs = (logits,)  # add hidden states and attention if they are here
 
-                logits_temp = logits_temp + logits
+                    logits_temp = logits_temp + logits
 
-                if labels is not None:
-                    loss_fct = CrossEntropyLoss()
-                    loss = loss + loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+                    if labels is not None:
+                        loss_fct = CrossEntropyLoss()
+                        loss = loss + loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
 
-        logits_temp = logits_temp / self.dropout_num
-        outputs = (logits_temp,)
+            logits_temp = logits_temp / self.dropout_num
+            outputs = (logits_temp,)
 
-        if labels is not None:
-            loss = loss / self.dropout_num
-            outputs = (loss,) + outputs
+            if labels is not None:
+                loss = loss / self.dropout_num
+                outputs = (loss,) + outputs
+
+        else:
+            logits = self.classifier(pooled_output)
+
+            outputs = (logits, )
+
+            if labels is not None:
+                loss_fct = CrossEntropyLoss()
+                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+
+                outputs = (loss,) + outputs
 
         return outputs  # (loss), logits, (hidden_states), (attentions)
 

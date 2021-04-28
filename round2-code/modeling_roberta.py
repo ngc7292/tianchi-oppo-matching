@@ -77,7 +77,7 @@ class RobertaEmbeddings(nn.Module):
         self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
         self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
         self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
-
+        self.co_ocurrence_embedings = nn.Embedding(2, config.hidden_size)
         # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be able to load
         # any TensorFlow checkpoint file
         self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
@@ -94,7 +94,7 @@ class RobertaEmbeddings(nn.Module):
         )
 
     def forward(
-        self, input_ids=None, token_type_ids=None, position_ids=None, inputs_embeds=None, past_key_values_length=0
+        self, input_ids=None, token_type_ids=None, position_ids=None, co_ocurrence_ids=None, inputs_embeds=None, past_key_values_length=0
     ):
         if position_ids is None:
             if input_ids is not None:
@@ -117,7 +117,12 @@ class RobertaEmbeddings(nn.Module):
             inputs_embeds = self.word_embeddings(input_ids)
         token_type_embeddings = self.token_type_embeddings(token_type_ids)
 
-        embeddings = inputs_embeds + token_type_embeddings
+        if co_ocurrence_ids is None:
+            embeddings = inputs_embeds + token_type_embeddings
+        else:
+            co_ocurrence_embedings = self.co_ocurrence_embedings(co_ocurrence_ids)
+            embeddings = inputs_embeds + token_type_embeddings + co_ocurrence_embedings
+
         if self.position_embedding_type == "absolute":
             position_embeddings = self.position_embeddings(position_ids)
             embeddings += position_embeddings
@@ -730,6 +735,8 @@ class RobertaModel(RobertaPreTrainedModel):
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
+        co_ocurrence_ids=None,
+        poolers=None
     ):
         r"""
         encoder_hidden_states  (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length, hidden_size)`, `optional`):
@@ -806,6 +813,7 @@ class RobertaModel(RobertaPreTrainedModel):
             input_ids=input_ids,
             position_ids=position_ids,
             token_type_ids=token_type_ids,
+            co_ocurrence_ids=co_ocurrence_ids,
             inputs_embeds=inputs_embeds,
             past_key_values_length=past_key_values_length,
         )
@@ -822,19 +830,17 @@ class RobertaModel(RobertaPreTrainedModel):
             return_dict=return_dict,
         )
         sequence_output = encoder_outputs[0]
-        pooled_output = self.pooler(sequence_output) if self.pooler is not None else None
+        if poolers is None:
+            pooled_output = self.pooler(sequence_output)
+        else:
+            pooled_outputs = ()
+            for i in range(len(poolers)):
+                pooled_outputs = (poolers[i](encoder_outputs[1][i + 1]),) + pooled_outputs
+            pooled_output = torch.cat(pooled_outputs, dim=-1)
 
-        if not return_dict:
-            return (sequence_output, pooled_output) + encoder_outputs[1:]
-
-        return BaseModelOutputWithPoolingAndCrossAttentions(
-            last_hidden_state=sequence_output,
-            pooler_output=pooled_output,
-            past_key_values=encoder_outputs.past_key_values,
-            hidden_states=encoder_outputs.hidden_states,
-            attentions=encoder_outputs.attentions,
-            cross_attentions=encoder_outputs.cross_attentions,
-        )
+        outputs = (sequence_output, pooled_output,) + encoder_outputs[
+                                                      1:]  # add hidden_states and attentions if they are here
+        return outputs  # sequence_output, pooled_output, (hidden_states), (attentions)
 
 
 @add_start_docstrings(
@@ -1113,7 +1119,6 @@ class RobertaForSequenceClassification(RobertaPreTrainedModel):
 
         self.init_weights()
 
-    @add_start_docstrings_to_model_forward(ROBERTA_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @add_code_sample_docstrings(
         tokenizer_class=_TOKENIZER_FOR_DOC,
         checkpoint=_CHECKPOINT_FOR_DOC,
@@ -1175,6 +1180,111 @@ class RobertaForSequenceClassification(RobertaPreTrainedModel):
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         )
+
+
+class RobertaForSequenceClassificationWithClsCat(RobertaPreTrainedModel):
+    _keys_to_ignore_on_load_missing = [r"position_ids"]
+
+    def __init__(self, config):
+        super().__init__(config)
+        self.num_labels = config.num_labels
+
+        self.roberta = RobertaModel(config, add_pooling_layer=False)
+        # we want use cls in every layers and pooler in here and not in bert
+        self.poolers = nn.ModuleList([RobertaPooler(config) for _ in range(config.num_hidden_layers)])
+
+        # self.classifier = RobertaClassificationHead(config)
+        # mutil sample dropout
+        self.dropout_num = 8
+        self.dropouts = nn.ModuleList([nn.Dropout(config.classifier_dropout_prob) for _ in range(self.dropout_num)])
+        # the classifer weight is shared
+        self.classifier = nn.Linear(config.hidden_size * config.num_hidden_layers, config.num_labels)
+
+        self.init_weights()
+        self.is_attack = False
+
+    def set_attack(self,mode=True):
+        self.is_attack = mode
+
+    @add_code_sample_docstrings(
+        tokenizer_class=_TOKENIZER_FOR_DOC,
+        checkpoint=_CHECKPOINT_FOR_DOC,
+        output_type=SequenceClassifierOutput,
+        config_class=_CONFIG_FOR_DOC,
+    )
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        token_type_ids=None,
+        position_ids=None,
+        head_mask=None,
+        inputs_embeds=None,
+        labels=None,
+        co_ocurrence_ids=None,
+    ):
+        r"""
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
+            Labels for computing the sequence classification/regression loss. Indices should be in :obj:`[0, ...,
+            config.num_labels - 1]`. If :obj:`config.num_labels == 1` a regression loss is computed (Mean-Square loss),
+            If :obj:`config.num_labels > 1` a classification loss is computed (Cross-Entropy).
+        """
+
+        outputs = self.roberta(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            co_ocurrence_ids=co_ocurrence_ids,
+            poolers=self.poolers
+        )
+        pooled_output = outputs[1]
+
+        if not self.is_attack:
+            for i, dropout in enumerate(self.dropouts):
+                if i == 0:
+                    pooled_output = dropout(pooled_output)
+                    logits = self.classifier(pooled_output)
+
+                    # outputs = (logits,)  # add hidden states and attention if they are here
+                    logits_temp = logits
+
+                    if labels is not None:
+                        loss_fct = CrossEntropyLoss()
+                        loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+                else:
+                    pooled_output = dropout(pooled_output)
+                    logits = self.classifier(pooled_output)
+
+                    # outputs = (logits,)  # add hidden states and attention if they are here
+
+                    logits_temp = logits_temp + logits
+
+                    if labels is not None:
+                        loss_fct = CrossEntropyLoss()
+                        loss = loss + loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+
+            logits_temp = logits_temp / self.dropout_num
+            outputs = (logits_temp,)
+
+            if labels is not None:
+                loss = loss / self.dropout_num
+                outputs = (loss,) + outputs
+
+        else:
+            logits = self.classifier(pooled_output)
+
+            outputs = (logits,)
+
+            if labels is not None:
+                loss_fct = CrossEntropyLoss()
+                loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
+
+                outputs = (loss,) + outputs
+
+        return outputs  # (loss), logits, (hidden_states), (attentions)
 
 
 class RobertaClassificationHead(nn.Module):

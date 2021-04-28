@@ -21,9 +21,9 @@ from transformers import Trainer, TrainingArguments
 from transformers import AlbertForSequenceClassification
 from DataCollator import DataCollatorForLanguageModelingNgram
 
-vocab_file = '/remote-home/zyfei/project/tianchi/round2-code/raw_text/macbert_base_vocab.txt'  # vocab file
-
-raw_text = '/remote-home/zyfei/project/tianchi/round2-code/raw_text/raw_text_macbert_base.txt' # line by line file
+# vocab_file = '/remote-home/zyfei/project/tianchi/round2-code/raw_text/macbert_base_vocab.txt'  # vocab file
+raw_text = './data/train-dual-exchange.tsv'
+# raw_text = '/remote-home/zyfei/project/tianchi/round2-code/raw_text/raw_text_macbert_base.txt' # line by line file
 # raw_text = '/remote-home/zyfei/project/tianchi/data/gaiic_track3_round1_train_20210228.tsv'
 # raw_text = '/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv'
 
@@ -31,9 +31,10 @@ raw_text = '/remote-home/zyfei/project/tianchi/round2-code/raw_text/raw_text_mac
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_output_with_label"
 model_name_or_path = "/remote-home/zyfei/project/tianchi/models/chinese-macbert-base"
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_with_label_2/checkpoint-10000"
-new_model_path = "/remote-home/zyfei/project/tianchi/model_output/macbert_base_output_without_round1"
+tokenizer_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1"
 
-cache_path = "/remote-home/zyfei/project/tianchi/cache/macbert-base-4-24"
+new_model_path = "/remote-home/zyfei/project/tianchi/model_output/bert_base_output_without_round1_v2"
+cache_path = "/remote-home/zyfei/project/tianchi/cache/macbert-base-4-28"
 
 
 class LineByLineTextDataset(Dataset):
@@ -124,9 +125,10 @@ training_args = TrainingArguments(
     overwrite_output_dir=True,
     num_train_epochs=300,
     per_device_train_batch_size=256,
-    save_steps=5_000,
+    save_steps=10_000,
+    max_steps=60000,
     learning_rate=5e-5,
-    dataloader_num_workers=8
+    dataloader_num_workers=16
 )
 
 trainer = Trainer(

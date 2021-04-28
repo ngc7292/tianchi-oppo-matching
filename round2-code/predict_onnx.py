@@ -89,7 +89,7 @@ def infer(session, tokenizer, text_1, text_2):
 # 需要根据模型类型重写
 def init_model(tokenizer_path):
     tokenizer = BertTokenizer.from_pretrained(tokenizer_path)
-    session = onnxruntime.InferenceSession("nezha-base-ensamble-co.onnx")
+    session = onnxruntime.InferenceSession("model-28-co.onnx")
 
     return tokenizer, session
 
