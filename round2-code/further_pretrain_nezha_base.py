@@ -23,7 +23,7 @@ from DataCollator import DataCollatorForLanguageModelingNgram
 
 # vocab_file = './nezha_base_vocab.txt'  # vocab file
 
-raw_text = './data/train-dual-exchange.tsv' # line by line file
+raw_text = './data/train-dual.tsv' # line by line file
 # raw_text = '/remote-home/zyfei/project/tianchi/data/gaiic_track3_round1_train_20210228.tsv'
 # raw_text = '/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv'
 

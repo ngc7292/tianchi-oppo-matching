@@ -22,7 +22,7 @@ from transformers import AlbertForSequenceClassification
 from DataCollator import DataCollatorForLanguageModelingNgram
 
 # vocab_file = '/remote-home/zyfei/project/tianchi/round2-code/raw_text/macbert_base_vocab.txt'  # vocab file
-raw_text = './data/train-dual-exchange.tsv'
+raw_text = './data/train-dual.tsv'
 # raw_text = '/remote-home/zyfei/project/tianchi/round2-code/raw_text/raw_text_macbert_base.txt' # line by line file
 # raw_text = '/remote-home/zyfei/project/tianchi/data/gaiic_track3_round1_train_20210228.tsv'
 # raw_text = '/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv'
@@ -82,8 +82,7 @@ def load_data(data_tokenizer, raw_text_path):
     )
 
 
-tokenizer = BertTokenizer(vocab_file=vocab_file)
-
+tokenizer = BertTokenizer.from_pretrained(tokenizer_path)
 # 转移权重
 config = BertConfig.from_pretrained(model_name_or_path)
 model = BertForMaskedLM.from_pretrained(model_name_or_path)
