@@ -22,7 +22,7 @@ from transformers import AlbertForSequenceClassification
 from DataCollator import DataCollatorForLanguageModelingNgram
 
 # vocab_file = '/remote-home/zyfei/project/tianchi/round2-code/raw_text/macbert_base_vocab.txt'  # vocab file
-raw_text = './data/train-dual.tsv'
+raw_text = './data/train_clean.tsv'
 # raw_text = '/remote-home/zyfei/project/tianchi/round2-code/raw_text/raw_text_macbert_base.txt' # line by line file
 # raw_text = '/remote-home/zyfei/project/tianchi/data/gaiic_track3_round1_train_20210228.tsv'
 # raw_text = '/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv'
@@ -33,8 +33,8 @@ model_name_or_path = "/remote-home/zyfei/project/tianchi/models/chinese-macbert-
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_with_label_2/checkpoint-10000"
 tokenizer_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1"
 
-new_model_path = "/remote-home/zyfei/project/tianchi/model_output/bert_base_output_without_round1_v2"
-cache_path = "/remote-home/zyfei/project/tianchi/cache/macbert-base-4-28"
+new_model_path = "/remote-home/zyfei/project/tianchi/model_output/bert_base_output_without_round1_v3"
+cache_path = "/remote-home/zyfei/project/tianchi/cache/macbert-base-4-29"
 
 
 class LineByLineTextDataset(Dataset):
@@ -73,7 +73,7 @@ class LineByLineTextDataset(Dataset):
 
 
 # using cache_result increase speed of loadding data if want to change cache use _refresh=True
-@cache_results(_cache_fp=cache_path, _refresh=True)
+@cache_results(_cache_fp=cache_path, _refresh=False)
 def load_data(data_tokenizer, raw_text_path):
     return LineByLineTextDataset(
         tokenizer=data_tokenizer,

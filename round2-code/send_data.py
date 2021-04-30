@@ -53,11 +53,12 @@ def load_data_fastnlp(path):
 
 if __name__ == '__main__':
     # train_path = "/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv"
-    train_path = "/remote-home/zyfei/project/tianchi/data/gaiic_track3_round1_train_20210228.tsv"
+    # train_path = "/remote-home/zyfei/project/tianchi/data/gaiic_track3_round1_train_20210228.tsv"
+    train_path = "./data/dev.tsv"
 
     samples, labels = load_data_fastnlp(train_path)
 
-    train_samples, test_samples, train_labels, test_labels = train_test_split(samples, labels, test_size=500, random_state=2021, shuffle=True)
+    train_samples, test_samples, train_labels, test_labels = train_test_split(samples, labels, test_size=5000, random_state=2021, shuffle=True)
 
     count = 1
     times = []

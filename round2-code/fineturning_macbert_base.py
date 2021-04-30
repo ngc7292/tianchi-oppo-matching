@@ -149,7 +149,8 @@ def load_data_fastnlp(path, tokenizer):
     return ds
 
 
-@cache_results(_cache_fp="/remote-home/zyfei/project/tianchi/cache/macbert-4-17-with-label-fineturning-enhance", _refresh=False)
+@cache_results(_cache_fp="/remote-home/zyfei/project/tianchi/cache/macbert-4-17-with-label-fineturning-enhance",
+               _refresh=False)
 def load_data_fastnlp_enhance(path, tokenizer):
     ds = FastNLPDataSet()
     samples = []
@@ -302,7 +303,8 @@ def train(model, attack_model, train_dataset, optimizer, device, epoch=0, epochs
                         if attack_model.adv_max_norm > 0:
                             delta_norm = torch.norm(delta.view(delta.size(0), -1).float(), p=2, dim=1).detach()
                             exceed_mask = (delta_norm > attack_model.adv_max_norm).to(embeds_init)
-                            reweights = (attack_model.adv_max_norm / delta_norm * exceed_mask + (1 - exceed_mask)).view(-1, 1, 1)
+                            reweights = (attack_model.adv_max_norm / delta_norm * exceed_mask + (1 - exceed_mask)).view(
+                                -1, 1, 1)
                             delta = (delta * reweights).detach()
                         embeds_init = model.bert.embeddings(input_ids=input_ids, token_type_ids=token_type_ids,
                                                             co_ocurrence_ids=co_ocurrence_ids)
@@ -385,18 +387,23 @@ def run():
     transformers.logging.set_verbosity_error()
     args = argparse.ArgumentParser()
 
+    args.add_argument("--train_path",
+                      default="/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv")
+    args.add_argument("--test_path",
+                      default="")
+
     # args.add_argument("--train_path",
     #                   default="/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv")
     # args.add_argument("--test_path",
     #                   default="/remote-home/zyfei/project/tianchi/data/gaiic_track3_round1_train_20210228.tsv")
-    args.add_argument("--train_path",
-                      default="./data/train.tsv")
-    args.add_argument("--test_path",
-                      default="./data/dev.tsv")
+    # args.add_argument("--train_path",
+    #                   default="./data/train.tsv")
+    # args.add_argument("--test_path",
+    #                   default="./data/dev.tsv")
 
     args.add_argument("--epoches", type=int, default=10)
     args.add_argument("--batch_size", type=int, default=128)
-    args.add_argument("--fold_name", default="./model_30")
+    args.add_argument("--fold_name", default="./nezha_base_v2_4_28_1")
     args.add_argument("--evalution_method", default="auc")
     args.add_argument("--attack_method", default="fgm")
     args.add_argument("--model_type", default="clscat")
@@ -407,7 +414,7 @@ def run():
     test_path = args.test_path
 
     # tokenizer_file = '/remote-home/zyfei/project/tianchi/model_output/nezha_output_2'
-    tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/macbert_base_output_without_round1"
+    tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1"
 
     epochs = args.epoches
     lr = 1e-5
@@ -428,7 +435,7 @@ def run():
     fitlog.add_hyper(random_seed, "random_seed")
 
     model_output_path = "/remote-home/zyfei/project/tianchi/model_output/"
-    checkpoint = "macbert_base_output_without_round1/checkpoint-55000/"
+    checkpoint = "bert_base_output_without_round1_v3/checkpoint-50000/"
     model_name_or_path = os.path.join(model_output_path, checkpoint)
     fitlog.add_hyper(checkpoint, "model_name_or_path")
 
@@ -440,18 +447,21 @@ def run():
     # train_dataset = load_data_fastnlp(train_path, tokenizer, _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-17-with-label-fineturning-train", _refresh=False)
     if args.data_enhance:
         train_dataset = load_data_fastnlp_enhance(train_path, tokenizer,
-                                                  _cache_fp="/remote-home/zyfei/project/tianchi/cache/macbert-4-27-with-label-fineturning-train-enhance",
+                                                  _cache_fp="/remote-home/zyfei/project/tianchi/cache/macbert-4-28-with-label-fineturning-train-enhance",
                                                   _refresh=False)
     else:
         train_dataset = load_data_fastnlp(train_path, tokenizer,
-                                          _cache_fp="/remote-home/zyfei/project/tianchi/cache/macbert-4-27-with-label-fineturning-train",
+                                          _cache_fp="/remote-home/zyfei/project/tianchi/cache/macbert-4-28-with-label-fineturning-train",
                                           _refresh=False)
 
     print(train_dataset.get_length())
     train_dataset.print_field_meta()
-    dev_dataset = load_data_fastnlp(test_path, tokenizer,
-                                    _cache_fp="/remote-home/zyfei/project/tianchi/cache/macbert-4-27-with-label-fineturning-dev",
-                                    _refresh=False)
+    if args.test_path != "":
+        dev_dataset = load_data_fastnlp(test_path, tokenizer,
+                                        _cache_fp="/remote-home/zyfei/project/tianchi/cache/macbert-4-28-with-label-fineturning-dev",
+                                        _refresh=False)
+    else:
+        train_dataset, dev_dataset = train_dataset.split(ratio=0.3, shuffle=True)
 
     if model_type == "headwithmd":
         # NeZhaLabelHead for classifier with mutil dropout
@@ -470,7 +480,7 @@ def run():
     fitlog.add_hyper(model_type, "model")
     model.to(device)
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.1)
 
     if args.attack_method == "fgm":
         attack_model = FGM(model)
@@ -481,6 +491,8 @@ def run():
     elif args.attack_method == "freelb":
         attack_model = FreeLB()
         model.set_attack()
+    elif args.attack_method == "freelb-md":
+        attack_model = FreeLB()
     elif args.attack_method == "mutildrop":
         attack_model = NoneAttack()
 

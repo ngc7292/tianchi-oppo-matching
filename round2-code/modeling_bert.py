@@ -779,7 +779,7 @@ class BertModel(BertPreTrainedModel):
         self.embeddings = BertEmbeddings(config)
         self.encoder = BertEncoder(config)
 
-        self.pooler = BertPooler(config) if add_pooling_layer else None
+        self.pooler = BertPooler(config)
 
         self.init_weights()
 
@@ -919,7 +919,8 @@ class BertModel(BertPreTrainedModel):
                 pooled_outputs = (poolers[i](encoder_outputs[1][i + 1]),) + pooled_outputs
             pooled_output = torch.cat(pooled_outputs, dim=-1)
 
-        outputs = (sequence_output, pooled_output,) + encoder_outputs[1:]  # add hidden_states and attentions if they are here
+        outputs = (sequence_output, pooled_output,) + encoder_outputs[
+                                                      1:]  # add hidden_states and attentions if they are here
         return outputs  # sequence_output, pooled_output, (hidden_states), (attentions)
 
 
@@ -1142,16 +1143,8 @@ class BertForMaskedLM(BertPreTrainedModel):
             loss_fct = CrossEntropyLoss()  # -100 index = padding token
             masked_lm_loss = loss_fct(prediction_scores.view(-1, self.config.vocab_size), labels.view(-1))
 
-        if not return_dict:
-            output = (prediction_scores,) + outputs[2:]
-            return ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
-
-        return MaskedLMOutput(
-            loss=masked_lm_loss,
-            logits=prediction_scores,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
-        )
+        output = (prediction_scores,) + outputs[2:]
+        return ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
 
     def prepare_inputs_for_generation(self, input_ids, attention_mask=None, **model_kwargs):
         input_shape = input_ids.shape
@@ -1347,7 +1340,7 @@ class BertForSequenceClassificationWithClsCat(BertPreTrainedModel):
         else:
             logits = self.classifier(pooled_output)
 
-            outputs = (logits, )
+            outputs = (logits,)
 
             if labels is not None:
                 loss_fct = CrossEntropyLoss()

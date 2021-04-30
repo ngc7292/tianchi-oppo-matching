@@ -65,7 +65,7 @@ class PGD():
         self.emb_backup = {}
         self.grad_backup = {}
 
-    def attack(self, epsilon=1, alpha=0.2, emb_name='word_embeddings.', is_first_attack=False):
+    def attack(self, epsilon=0.5, alpha=0.2, emb_name='word_embeddings.', is_first_attack=False):
         # epsilon = 1. alpha = 0.3
         # emb_name这个参数要换成你模型中embedding的参数名
         for name, param in self.model.named_parameters():
@@ -383,19 +383,19 @@ def run():
     transformers.logging.set_verbosity_error()
     args = argparse.ArgumentParser()
 
-    # args.add_argument("--train_path",
-    #                   default="/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv")
-    # args.add_argument("--test_path",
-    #                   default="/remote-home/zyfei/project/tianchi/round2-code/data/dev_data.tsv")
-
     args.add_argument("--train_path",
-                      default="./data/train.tsv")
+                      default="/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv")
     args.add_argument("--test_path",
-                      default="./data/dev.tsv")
+                      default="")
+
+    # args.add_argument("--train_path",
+    #                   default="./data/train.tsv")
+    # args.add_argument("--test_path",
+    #                   default="./data/dev.tsv")
 
     args.add_argument("--epoches", type=int, default=10)
     args.add_argument("--batch_size", type=int, default=128)
-    args.add_argument("--fold_name", default="./model_28")
+    args.add_argument("--fold_name", default="./nezha_base_v3_4_30_1")
     args.add_argument("--evalution_method", default="auc")
     args.add_argument("--attack_method", default="fgm")
     args.add_argument("--model_type", default="clscat")
@@ -406,7 +406,7 @@ def run():
     test_path = args.test_path
 
     # tokenizer_file = '/remote-home/zyfei/project/tianchi/model_output/nezha_output_2'
-    tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1"
+    tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1_v2"
 
     epochs = args.epoches
     lr = 1e-5
@@ -427,9 +427,10 @@ def run():
     fitlog.add_hyper(random_seed, "random_seed")
 
     model_output_path = "/remote-home/zyfei/project/tianchi/model_output/"
-    checkpoint = "nezha_base_output_without_round1/checkpoint-50000"
+    checkpoint = "nezha_base_output_only_true_v1/checkpoint-50000"
     model_name_or_path = os.path.join(model_output_path, checkpoint)
     fitlog.add_hyper(checkpoint, "model_name_or_path")
+    print("traing in checkpoint"+checkpoint)
 
     tokenizer = BertTokenizer.from_pretrained(tokenizer_file)
 
@@ -439,17 +440,20 @@ def run():
     # train_dataset = load_data_fastnlp(train_path, tokenizer, _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-17-with-label-fineturning-train", _refresh=False)
     if args.data_enhance:
         train_dataset = load_data_fastnlp_enhance(train_path, tokenizer,
-                                                  _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-26-with-label-fineturning-train-enhance",
+                                                  _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-30-with-label-fineturning-train-enhance",
                                                   _refresh=False)
     else:
         train_dataset = load_data_fastnlp(train_path, tokenizer,
-                                          _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-26-with-label-fineturning-train",
+                                          _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-30-with-label-fineturning-train",
                                           _refresh=False)
 
     train_dataset.print_field_meta()
-    dev_dataset = load_data_fastnlp(test_path, tokenizer,
-                                    _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-26-with-label-fineturning-dev",
-                                    _refresh=False)
+    if args.test_path != "":
+        dev_dataset = load_data_fastnlp(test_path, tokenizer,
+                                        _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-30-with-label-fineturning-dev",
+                                        _refresh=False)
+    else:
+        train_dataset, dev_dataset = train_dataset.split(ratio=0.3, shuffle=True)
 
     if model_type == "headwithmd":
         # NeZhaLabelHead for classifier with mutil dropout
@@ -484,7 +488,6 @@ def run():
         attack_model = FreeLB()
     elif args.attack_method == "mutildrop":
         attack_model = NoneAttack()
-
     else:
         raise NotImplementedError
 

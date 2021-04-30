@@ -6,8 +6,40 @@ __mtime__="2021/3/25"
 """
 import torch
 
+from typing import Optional, List
 from transformers.tokenization_utils_base import BatchEncoding
 
+
+def get_special_tokens_mask(
+        tokenizer, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None, already_has_special_tokens: bool = False
+) -> List[int]:
+    """
+    Retrieve sequence ids from a token list that has no special tokens added. This method is called when adding
+    special tokens using the tokenizer ``prepare_for_model`` method.
+
+    Args:
+        token_ids_0 (:obj:`List[int]`):
+            List of IDs.
+        token_ids_1 (:obj:`List[int]`, `optional`):
+            Optional second list of IDs for sequence pairs.
+        already_has_special_tokens (:obj:`bool`, `optional`, defaults to :obj:`False`):
+            Whether or not the token list is already formatted with special tokens for the model.
+
+    Returns:
+        :obj:`List[int]`: A list of integers in the range [0, 1]: 1 for a special token, 0 for a sequence token.
+    """
+
+    if already_has_special_tokens:
+        if token_ids_1 is not None:
+            raise ValueError(
+                "You should not supply a second sequence if the provided sequence of "
+                "ids is already formatted with special tokens for the model."
+            )
+        return list(map(lambda x: 1 if x in [tokenizer.sep_token_id, tokenizer.cls_token_id, tokenizer.pad_token_id] else 0, token_ids_0))
+
+    if token_ids_1 is not None:
+        return [1] + ([0] * len(token_ids_0)) + [1] + ([0] * len(token_ids_1)) + [1]
+    return [1] + ([0] * len(token_ids_0)) + [1]
 
 def _collate_batch(examples, data_tokenizer):
     """Collate `examples` into a batch, using the information in `tokenizer` for padding if necessary."""
@@ -76,8 +108,11 @@ class DataCollatorForLanguageModelingNgram:
         # 是否变成2-gram。 0.4
         ngram_matrix = torch.full(labels.shape, 0.4)
         if special_tokens_mask is None:
+            # special_tokens_mask = [
+            #     self.tokenizer.get_special_tokens_mask(val, already_has_special_tokens=True) for val in labels.tolist()
+            # ]
             special_tokens_mask = [
-                self.tokenizer.get_special_tokens_mask(val, already_has_special_tokens=True) for val in labels.tolist()
+                get_special_tokens_mask(self.tokenizer, val, already_has_special_tokens=True) for val in labels.tolist()
             ]
             special_tokens_mask = torch.tensor(special_tokens_mask, dtype=torch.bool)
         else:

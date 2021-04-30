@@ -21,19 +21,22 @@ from transformers import Trainer, TrainingArguments
 from transformers import AlbertForSequenceClassification
 from DataCollator import DataCollatorForLanguageModelingNgram
 
-vocab_file = '/remote-home/zyfei/project/tianchi/round2-code/raw_text/roberta_base_vocab.txt'  # vocab file
+# vocab_file = '/remote-home/zyfei/project/tianchi/round2-code/raw_text/roberta_base_vocab.txt'  # vocab file
 
-raw_text = '/remote-home/zyfei/project/tianchi/round2-code/raw_text/raw_text_roberta_base.txt' # line by line file
+raw_text = './data/train-dual-exchange.tsv' # line by line file
 # raw_text = '/remote-home/zyfei/project/tianchi/data/gaiic_track3_round1_train_20210228.tsv'
 # raw_text = '/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv'
+
 
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/output/nezha-pretrained-round1/checkpoint-30000"
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_output_with_label"
 model_name_or_path = "/remote-home/zyfei/project/tianchi/models/chinese-roberta-wwm-ext"
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_with_label_2/checkpoint-10000"
-new_model_path = "/remote-home/zyfei/project/tianchi/model_output/roberta_base_output_without_round1"
+tokenizer_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1"
 
-cache_path = "/remote-home/zyfei/project/tianchi/cache/roberta-base-4-24"
+new_model_path = "/remote-home/zyfei/project/tianchi/model_output/roberta_base_output_without_round1_v3"
+
+cache_path = "/remote-home/zyfei/project/tianchi/cache/roberta-base-4-29"
 
 
 class LineByLineTextDataset(Dataset):
@@ -81,7 +84,7 @@ def load_data(data_tokenizer, raw_text_path):
     )
 
 
-tokenizer = BertTokenizer(vocab_file=vocab_file)
+tokenizer = BertTokenizer.from_pretrained(tokenizer_path)
 
 # 转移权重
 config = RobertaConfig.from_pretrained(model_name_or_path)
@@ -122,11 +125,11 @@ data_collator = DataCollatorForLanguageModelingNgram(
 training_args = TrainingArguments(
     output_dir=new_model_path,
     overwrite_output_dir=True,
-    num_train_epochs=150,
+    num_train_epochs=300,
     per_device_train_batch_size=256,
-    save_steps=5_000,
+    save_steps=10_000,
     learning_rate=5e-5,
-    max_steps=60000,
+    max_steps=30000,
     dataloader_num_workers=16
 )
 

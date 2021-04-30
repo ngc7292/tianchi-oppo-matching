@@ -23,21 +23,21 @@ from DataCollator import DataCollatorForLanguageModelingNgram
 
 # vocab_file = './nezha_base_vocab.txt'  # vocab file
 
-raw_text = './data/train-dual.tsv' # line by line file
+raw_text = './data/train-dual-exchange.tsv'  # line by line file
 # raw_text = '/remote-home/zyfei/project/tianchi/data/gaiic_track3_round1_train_20210228.tsv'
 # raw_text = '/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv'
 
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/output/nezha-pretrained-round1/checkpoint-30000"
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_output_with_label"
 model_name_or_path = "/remote-home/zyfei/project/tianchi/models/nezha-base-www"
-# model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_with_label_2/checkpoint-10000"
+# model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1_v3/checkpoint-30000"
 tokenizer_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1"
 
-new_model_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1_v2"
+new_model_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30"
 
+cache_path = "/remote-home/zyfei/project/tianchi/cache/nezha-base-4-30"
 
-cache_path = "/remote-home/zyfei/project/tianchi/cache/nezha-base-4-28"
-
+print(f"data path is {raw_text}, origin model is {model_name_or_path}, and trained model saved {new_model_path}, data cache is {cache_path}, tokenizer is {tokenizer_path}")
 
 class LineByLineTextDataset(Dataset):
     """
@@ -58,29 +58,41 @@ class LineByLineTextDataset(Dataset):
                     lines_1.append(text1)
                     lines_2.append(text2)
 
-        batch_encoding = tokenizer(text=lines_1, text_pair=lines_2, add_special_tokens=True, truncation=True,
-                                   max_length=block_size)
+        self.tokenizer = tokenizer
+        self.block_size = block_size
 
-        example_ids = batch_encoding["input_ids"]
-        example_tokens = batch_encoding["token_type_ids"]
+        # batch_encoding = tokenizer(text=lines_1, text_pair=lines_2, add_special_tokens=True, truncation=True,
+        #                            max_length=block_size)
+        #
+        # example_ids = batch_encoding["input_ids"]
+        # example_tokens = batch_encoding["token_type_ids"]
         self.examples = [
-            {"input_ids": torch.tensor(e, dtype=torch.long),
-             "token_type_ids": torch.tensor(t, dtype=torch.long)} for e, t in zip(example_ids, example_tokens)]
+            {"text_1": e,
+             "text_2": t} for e, t in zip(lines_1, lines_2)]
 
     def __len__(self):
         return len(self.examples)
 
     def __getitem__(self, i) -> Dict[str, torch.tensor]:
-        return self.examples[i]
+        text_1 = self.examples[i]["text_1"]
+        text_2 = self.examples[i]["text_2"]
+
+        batch_encoding = tokenizer(text=text_1, text_pair=text_2, add_special_tokens=True, truncation=True,
+                                   max_length=self.block_size)
+        result = {
+            "input_ids": batch_encoding["input_ids"],
+            "token_type_ids": batch_encoding["token_type_ids"]
+        }
+        return result
 
 
 # using cache_result increase speed of loadding data if want to change cache use _refresh=True
-@cache_results(_cache_fp=cache_path, _refresh=True)
+@cache_results(_cache_fp=cache_path, _refresh=False)
 def load_data(data_tokenizer, raw_text_path):
     return LineByLineTextDataset(
         tokenizer=data_tokenizer,
         file_path=raw_text_path,
-        block_size=32  # maximum sequence length
+        block_size=64  # maximum sequence length
     )
 
 
@@ -99,7 +111,7 @@ pretrained_model.resize_token_embeddings(tokenizer.vocab_size)
 pretrained_dict = pretrained_model.state_dict()
 model_dict = model.state_dict()
 
-for k,v in pretrained_dict.items():
+for k, v in pretrained_dict.items():
     if k in model_dict:
         if v.size() == model_dict[k].size():
             model_dict[k] = v
@@ -126,8 +138,8 @@ data_collator = DataCollatorForLanguageModelingNgram(
 training_args = TrainingArguments(
     output_dir=new_model_path,
     overwrite_output_dir=True,
-    num_train_epochs=300,
-    per_device_train_batch_size=256,
+    num_train_epochs=100,
+    per_device_train_batch_size=128,
     save_steps=10_000,
     learning_rate=5e-5,
     max_steps=60000,

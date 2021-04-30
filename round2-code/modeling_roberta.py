@@ -694,7 +694,7 @@ class RobertaModel(RobertaPreTrainedModel):
         self.embeddings = RobertaEmbeddings(config)
         self.encoder = RobertaEncoder(config)
 
-        self.pooler = RobertaPooler(config) if add_pooling_layer else None
+        self.pooler = RobertaPooler(config)
 
         self.init_weights()
 
@@ -1070,16 +1070,10 @@ class RobertaForMaskedLM(RobertaPreTrainedModel):
             loss_fct = CrossEntropyLoss()
             masked_lm_loss = loss_fct(prediction_scores.view(-1, self.config.vocab_size), labels.view(-1))
 
-        if not return_dict:
-            output = (prediction_scores,) + outputs[2:]
-            return ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
+        output = (prediction_scores,) + outputs[2:]
+        return ((masked_lm_loss,) + output) if masked_lm_loss is not None else output
 
-        return MaskedLMOutput(
-            loss=masked_lm_loss,
-            logits=prediction_scores,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
-        )
+
 
 
 class RobertaLMHead(nn.Module):
