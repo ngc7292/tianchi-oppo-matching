@@ -44,3 +44,20 @@ CUDA_VISIBLE_DEVICES=3 python fineturning_nezha_base.py --fold_name ./nezha_base
 CUDA_VISIBLE_DEVICES=5 python fineturning_macbert_base.py --fold_name ./bert_base_v2_4_28_1 --attack_method fgm --epoches 10 --batch_size 256
 
 CUDA_VISIBLE_DEVICES=6 python fineturning_macbert_base.py --fold_name ./bert_base_v2_4_28_7 --attack_method fgm --epoches 10 --batch_size 256
+
+
+
+5.1
+CUDA_VISIBLE_DEVICES=4 python fineturning_nezha_base_k_fold.py --fold_name ./nezha_5_1_2 --attack_method pgd --epoches 10 --batch_size 256
+
+CUDA_VISIBLE_DEVICES=5 python fineturning_nezha_base_k_fold.py --fold_name ./nezha_5_1_3 --attack_method freelb --epoches 10 --batch_size 256
+
+CUDA_VISIBLE_DEVICES=4 python fineturning_nezha_base_k_fold.py --fold_name ./nezha_5_1_4 --attack_method fgm --epoches 10 --batch_size 128
+
+
+
+
+
+v1 origin_model nezha_base_output_4_30_v2_round2/checkpoint-20000
+
+further pretrain param lr 5e-5 epoches 100 per_batch_size 128 

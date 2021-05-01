@@ -16,8 +16,6 @@ import pandas as pd
 import networkx as nx
 import argparse
 
-# from torch.utils.data.dataset import Dataset
-# from torch.utils.data import DataLoader
 from fastNLP import DataSet as FastNLPDataSet
 from fastNLP.core import Instance, DataSetIter, RandomSampler, cache_results
 from sklearn.metrics import roc_auc_score, accuracy_score
@@ -65,7 +63,7 @@ class PGD():
         self.emb_backup = {}
         self.grad_backup = {}
 
-    def attack(self, epsilon=1, alpha=0.2, emb_name='word_embeddings.', is_first_attack=False):
+    def attack(self, epsilon=0.3, alpha=0.2, emb_name='word_embeddings.', is_first_attack=False):
         # epsilon = 1. alpha = 0.3
         # emb_name这个参数要换成你模型中embedding的参数名
         for name, param in self.model.named_parameters():
@@ -126,7 +124,7 @@ def tokenize_data(text_1, text_2, tokenizer):
     # 1 is word in other sentence and 0 is not in other sentence
     co_ocurrence_list = [0] + [1 if i in sentence_set2 else 0 for i in sentence_list1] + [0] + [
         1 if i in sentence_set1 else 0 for i in sentence_list2] + [0]
-    sample = tokenizer(text=text_1, text_pair=text_2, add_special_tokens=True, truncation=True)
+    sample = tokenizer(text=text_1, text_pair=text_2, add_special_tokens=True, truncation=True, max_length=64)
     return {
         "input_ids": sample.input_ids,
         "token_type_ids": sample.token_type_ids,
@@ -149,25 +147,6 @@ def load_data_fastnlp(path, tokenizer):
     ds.set_input("input_ids", "token_type_ids", "attention_mask", "co_ocurrence_ids", "label")
     ds.set_target("label")
     return ds
-
-
-class Tokenizer():
-    def __init__(self, tokenizer):
-        self.tokenizer = tokenizer
-
-    def tokenize(self, ins: Instance):
-        text_1 = ins["samples"][0]
-        text_2 = ins["samples"][1]
-        label = int(ins["label"])
-        data_1 = tokenize_data(text_1, text_2, self.tokenizer)
-
-        return {
-            "input_ids": data_1["input_ids"],
-            "token_type_ids": data_1["token_type_ids"],
-            "attention_mask": data_1["attention_mask"],
-            "co_ocurrence_ids": data_1["co_ocurrence_ids"],
-            "label": label
-        }
 
 
 @cache_results(_cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-27-with-label-fineturning-kfold",
@@ -237,11 +216,11 @@ def train(model, attack_model, train_dataset, optimizer, device, epoch=0, epochs
                         loss_adv.backward()  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
                     attack_model.restore()  # 恢复embedding参数
             elif attack_model.name == "freelb":
-                if epoch <= 5:
+                if epoch < 3:
                     loss, logits = model(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids,
                                          co_ocurrence_ids=co_ocurrence_ids, labels=labels)[:2]
                     loss.backward()
-                elif epoch > 5:
+                elif epoch >= 3:
                     # init delta
                     embeds_init = model.bert.embeddings(input_ids=input_ids, token_type_ids=token_type_ids,
                                                         co_ocurrence_ids=co_ocurrence_ids)
@@ -363,31 +342,19 @@ def run():
     transformers.logging.set_verbosity_error()
     args = argparse.ArgumentParser()
 
-    # args.add_argument("--train_path",
-    #                   default="/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv")
-    # args.add_argument("--test_path",
-    #                   default="/remote-home/zyfei/project/tianchi/round2-code/data/dev_data.tsv")
-
     args.add_argument("--train_path",
-                      default="./data/train.tsv")
-    args.add_argument("--test_path",
-                      default="./data/dev.tsv")
+                      default="/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv")
 
     args.add_argument("--epoches", type=int, default=10)
     args.add_argument("--batch_size", type=int, default=128)
-    args.add_argument("--fold_name", default="./model_28")
+    args.add_argument("--fold_name", default="./nezha_5_1_2")
     args.add_argument("--evalution_method", default="auc")
     args.add_argument("--attack_method", default="fgm")
     args.add_argument("--model_type", default="clscat")
-    args.add_argument("--data_enhance", action='store_true')
     args.add_argument("--n_splits", type=int, default=5)
 
     args = args.parse_args()
     train_path = args.train_path
-    test_path = args.test_path
-
-    # tokenizer_file = '/remote-home/zyfei/project/tianchi/model_output/nezha_output_2'
-    tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1"
 
     epochs = args.epoches
     lr = 1e-5
@@ -397,8 +364,6 @@ def run():
     model_type = args.model_type
 
     fitlog.add_hyper(args)
-    # fitlog.add_hyper(fold_path, "fold_path")  # 记录本文件中写死的超参数
-    # fitlog.add_hyper("no co_ocurrence", "attention")
 
     random_seed = 42
     random.seed(random_seed)
@@ -407,72 +372,65 @@ def run():
 
     fitlog.add_hyper(random_seed, "random_seed")
 
-    model_output_path = "/remote-home/zyfei/project/tianchi/model_output/"
-    checkpoint = "nezha_base_output_without_round1/checkpoint-50000"
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+
+    tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2_round2data"
+
+    model_output_path = "/remote-home/zyfei/project/tianchi/model_output"
+    checkpoint = "nezha_base_output_4_30_v2_round2data/checkpoint-20000"
     model_name_or_path = os.path.join(model_output_path, checkpoint)
     fitlog.add_hyper(checkpoint, "model_name_or_path")
+    print("traing in checkpoint" + checkpoint)
 
     tokenizer = BertTokenizer.from_pretrained(tokenizer_file)
 
-    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-
-    # train_dataset, dev_dataset = load_data_fastnlp(train_path, tokenizer).split(0.3, shuffle=True)
-    # train_dataset = load_data_fastnlp(train_path, tokenizer, _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-17-with-label-fineturning-train", _refresh=False)
-
     train_samples, train_input_ids, train_token_type_ids, train_attention_masks, train_co_ocurrence_ids, train_labels = load_data(
         train_path, tokenizer=tokenizer,
-        _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-27-with-label-fineturning-train-self-enhance",
+        _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-5-1-fineturning-kfold",
         _refresh=False)
-
-    test_dataset = load_data_fastnlp(test_path, tokenizer,
-                                     _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-27-with-label-fineturning-dev-self-enhance",
-                                     _refresh=False)
-
-    if model_type == "headwithmd":
-        # NeZhaLabelHead for classifier with mutil dropout
-        config = NeZhaConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
-        model = NeZhaForSequenceClassificationWithHeadClassMD.from_pretrained(model_name_or_path, config=config)
-    elif model_type == "head":
-        # only use NeZhaLabelHead for classifier
-        config = NeZhaConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
-        model = NeZhaForSequenceClassificationWithHeadClass.from_pretrained(model_name_or_path, config=config)
-    elif model_type == "clscat":
-        # cat cls to classifier
-        config = NeZhaConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
-        model = NeZhaForSequenceClassificationWithClsCat.from_pretrained(model_name_or_path, config=config)
-    else:
-        raise NotImplementedError
-
-    fitlog.add_hyper(model_type, "model")
-    model.to(device)
-
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.1)
-
-    if args.attack_method == "fgm":
-        attack_model = FGM(model)
-        model.set_attack()
-    elif args.attack_method == "pgd":
-        attack_model = PGD(model)
-        model.set_attack()
-    elif args.attack_method == "freelb":
-        attack_model = FreeLB()
-        model.set_attack()
-    elif args.attack_method == "freelb-md":
-        attack_model = FreeLB()
-    elif args.attack_method == "mutildrop":
-        attack_model = NoneAttack()
-
-    else:
-        raise NotImplementedError
-
-    # fitlog.add_hyper(attack_model.name, "attack_model")
-    tokenizer.save_pretrained(fold_path)
 
     skf = StratifiedKFold(n_splits=args.n_splits, random_state=42, shuffle=True)
 
     for fold, (train_index, val_index) in enumerate(skf.split(train_samples, train_labels)):
         print("FOLD | ", fold + 1)
         print("###" * 35)
+
+        if model_type == "headwithmd":
+            # NeZhaLabelHead for classifier with mutil dropout
+            config = NeZhaConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
+            model = NeZhaForSequenceClassificationWithHeadClassMD.from_pretrained(model_name_or_path, config=config)
+        elif model_type == "head":
+            # only use NeZhaLabelHead for classifier
+            config = NeZhaConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
+            model = NeZhaForSequenceClassificationWithHeadClass.from_pretrained(model_name_or_path, config=config)
+        elif model_type == "clscat":
+            # cat cls to classifier
+            config = NeZhaConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
+            model = NeZhaForSequenceClassificationWithClsCat.from_pretrained(model_name_or_path, config=config)
+        else:
+            raise NotImplementedError
+
+        model.to(device)
+
+        optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.1)
+
+        if args.attack_method == "fgm":
+            attack_model = FGM(model)
+            model.set_attack()
+        elif args.attack_method == "pgd":
+            attack_model = PGD(model)
+            model.set_attack()
+        elif args.attack_method == "freelb":
+            attack_model = FreeLB()
+            model.set_attack()
+        elif args.attack_method == "freelb-md":
+            attack_model = FreeLB()
+        elif args.attack_method == "mutildrop":
+            attack_model = NoneAttack()
+        else:
+            raise NotImplementedError
+
+        tokenizer.save_pretrained(fold_path)
 
         train_data = {"samples": train_samples[train_index],
                       "input_ids": train_input_ids[train_index],
@@ -500,17 +458,14 @@ def run():
             train(model, attack_model, train_dataset, optimizer, device, i, epochs, batch_size)
             if evalution_method == "auc":
                 result = evaluate(model, dev_dataset, device, batch_size)
-                test_result = evaluate(model,test_dataset, device, batch_size)
             else:
                 result = evaluate_acc(model, dev_dataset, device, batch_size)
-                test_result = evaluate_acc(model,test_dataset, device, batch_size)
 
-            print(f'fold:{fold + 1}, epoch:{i}, dev {evalution_method}:{result}, test {evalution_method}:{test_result}')
+            print(f'fold:{fold + 1}, epoch:{i}, dev {evalution_method}:{result}, test {evalution_method}:{result}')
             fitlog.add_metric({"dev": {f"{fold + 1}-dev-{evalution_method}": result}}, step=i)
-            fitlog.add_metric({"dev": {f"{fold + 1}-test-{evalution_method}": test_result}}, step=i)
 
-            if test_result > best_result:
-                best_result = test_result
+            if result > best_result:
+                best_result = result
                 model.save_pretrained(current_fold_path)
                 # torch.save(model.state_dict(), current_fold_path)
         print(f'fold:{fold + 1}, best test result:{best_result}')

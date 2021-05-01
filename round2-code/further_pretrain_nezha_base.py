@@ -31,12 +31,16 @@ raw_text = '/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_output_with_label"
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/models/nezha-base-www"
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1_v3/checkpoint-30000"
-tokenizer_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1"
+tokenizer_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2_round2data"
 
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30"
 
 model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1/checkpoint-50000"
 new_model_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2_round2data"
+
+# model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2_round2data/checkpoint-20000"
+# new_model_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2_round2data_1"
+
 cache_path = "/remote-home/zyfei/project/tianchi/cache/nezha-base-4-30_v2_round2data"
 
 print(f"data path is {raw_text}, origin model is {model_name_or_path}, and trained model saved {new_model_path}, data cache is {cache_path}, tokenizer is {tokenizer_path}")
@@ -150,10 +154,10 @@ data_collator = DataCollatorForLanguageModelingNgram(
 training_args = TrainingArguments(
     output_dir=new_model_path,
     overwrite_output_dir=True,
-    num_train_epochs=100,
+    num_train_epochs=200,
     per_device_train_batch_size=256,
     save_steps=10_000,
-    learning_rate=5e-5,
+    learning_rate=1e-5,
     dataloader_num_workers=16,
     fp16=True
 )
@@ -163,10 +167,11 @@ trainer = Trainer(
     args=training_args,
     data_collator=data_collator,
     train_dataset=dataset,
+    tokenizer=tokenizer
 )
 
 print("*" * 35)
 print("traing...")
-trainer.train()
+trainer.train(resume_from_checkpoint="/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2_round2data/checkpoint-20000")
 
 trainer.save_model(new_model_path)

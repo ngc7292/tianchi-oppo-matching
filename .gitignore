@@ -104,6 +104,6 @@ fabric.properties
 # CodeStream plugin
 # https://plugins.jetbrains.com/plugin/12206-codestream
 .idea/codestream.xml
-round2_project/
+round2_project_v1/
 # End of https://www.toptal.com/developers/gitignore/api/pycharm
 n

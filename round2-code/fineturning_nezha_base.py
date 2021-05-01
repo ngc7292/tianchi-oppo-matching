@@ -395,7 +395,7 @@ def run():
 
     args.add_argument("--epoches", type=int, default=10)
     args.add_argument("--batch_size", type=int, default=128)
-    args.add_argument("--fold_name", default="./nezha_5_1_1")
+    args.add_argument("--fold_name", default="./nezha_5_1_2")
     args.add_argument("--evalution_method", default="auc")
     args.add_argument("--attack_method", default="fgm")
     args.add_argument("--model_type", default="clscat")
@@ -406,7 +406,7 @@ def run():
     test_path = args.test_path
 
     # tokenizer_file = '/remote-home/zyfei/project/tianchi/model_output/nezha_output_2'
-    tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1"
+    tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2_round2data"
 
     epochs = args.epoches
     lr = 1e-5
@@ -426,11 +426,11 @@ def run():
 
     fitlog.add_hyper(random_seed, "random_seed")
 
-    model_output_path = "/remote-home/zyfei/project/tianchi/model_output/"
-    checkpoint = "nezha_base_output_4_30/checkpoint-60000"
+    model_output_path = "/remote-home/zyfei/project/tianchi/model_output"
+    checkpoint = "nezha_base_output_4_30_v2_round2data"
     model_name_or_path = os.path.join(model_output_path, checkpoint)
     fitlog.add_hyper(checkpoint, "model_name_or_path")
-    print("traing in checkpoint"+checkpoint)
+    print("traing in checkpoint" + checkpoint)
 
     tokenizer = BertTokenizer.from_pretrained(tokenizer_file)
 
@@ -438,22 +438,14 @@ def run():
 
     # train_dataset, dev_dataset = load_data_fastnlp(train_path, tokenizer).split(0.3, shuffle=True)
     # train_dataset = load_data_fastnlp(train_path, tokenizer, _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-17-with-label-fineturning-train", _refresh=False)
-    if args.data_enhance:
-        train_dataset = load_data_fastnlp_enhance(train_path, tokenizer,
-                                                  _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-30-with-label-fineturning-train-enhance",
-                                                  _refresh=False)
-    else:
-        train_dataset = load_data_fastnlp(train_path, tokenizer,
-                                          _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-30-with-label-fineturning-train",
-                                          _refresh=False)
+
+    train_dataset = load_data_fastnlp(train_path, tokenizer,
+                                      _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-30-with-label-fineturning-train",
+                                      _refresh=False)
 
     train_dataset.print_field_meta()
-    if args.test_path != "":
-        dev_dataset = load_data_fastnlp(test_path, tokenizer,
-                                        _cache_fp="/remote-home/zyfei/project/tianchi/cache/nezha-4-30-with-label-fineturning-dev",
-                                        _refresh=False)
-    else:
-        train_dataset, dev_dataset = train_dataset.split(ratio=0.3, shuffle=True)
+
+    train_dataset, dev_dataset = train_dataset.split(ratio=0.3, shuffle=True)
 
     if model_type == "headwithmd":
         # NeZhaLabelHead for classifier with mutil dropout
@@ -491,7 +483,6 @@ def run():
     else:
         raise NotImplementedError
 
-    # fitlog.add_hyper(attack_model.name, "attack_model")
     tokenizer.save_pretrained(fold_path)
 
     best_result = 0
@@ -510,7 +501,6 @@ def run():
             best_model.save_pretrained(fold_path)
             # torch.save(model.state_dict(), current_fold_path)
     print(f'best result:{best_result}')
-    best_model.save_pretrained(fold_path)
 
     fitlog.add_best_metric(str(best_result), evalution_method)
     fitlog.finish()
