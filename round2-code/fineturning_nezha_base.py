@@ -395,7 +395,7 @@ def run():
 
     args.add_argument("--epoches", type=int, default=10)
     args.add_argument("--batch_size", type=int, default=128)
-    args.add_argument("--fold_name", default="./nezha_base_v3_4_30_1")
+    args.add_argument("--fold_name", default="./nezha_5_1_1")
     args.add_argument("--evalution_method", default="auc")
     args.add_argument("--attack_method", default="fgm")
     args.add_argument("--model_type", default="clscat")
@@ -406,7 +406,7 @@ def run():
     test_path = args.test_path
 
     # tokenizer_file = '/remote-home/zyfei/project/tianchi/model_output/nezha_output_2'
-    tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1_v2"
+    tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1"
 
     epochs = args.epoches
     lr = 1e-5
@@ -427,7 +427,7 @@ def run():
     fitlog.add_hyper(random_seed, "random_seed")
 
     model_output_path = "/remote-home/zyfei/project/tianchi/model_output/"
-    checkpoint = "nezha_base_output_only_true_v1/checkpoint-50000"
+    checkpoint = "nezha_base_output_4_30/checkpoint-60000"
     model_name_or_path = os.path.join(model_output_path, checkpoint)
     fitlog.add_hyper(checkpoint, "model_name_or_path")
     print("traing in checkpoint"+checkpoint)

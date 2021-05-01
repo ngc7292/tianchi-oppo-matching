@@ -23,19 +23,21 @@ from DataCollator import DataCollatorForLanguageModelingNgram
 
 # vocab_file = './nezha_base_vocab.txt'  # vocab file
 
-raw_text = './data/train-dual-exchange.tsv'  # line by line file
+# raw_text = './data/train_true.tsv'  # line by line file
 # raw_text = '/remote-home/zyfei/project/tianchi/data/gaiic_track3_round1_train_20210228.tsv'
-# raw_text = '/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv'
+raw_text = '/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv'
 
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/output/nezha-pretrained-round1/checkpoint-30000"
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_output_with_label"
-model_name_or_path = "/remote-home/zyfei/project/tianchi/models/nezha-base-www"
+# model_name_or_path = "/remote-home/zyfei/project/tianchi/models/nezha-base-www"
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1_v3/checkpoint-30000"
-tokenizer_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1"
+tokenizer_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2"
 
-new_model_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30"
+# model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30"
 
-cache_path = "/remote-home/zyfei/project/tianchi/cache/nezha-base-4-30"
+model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2/checkpoint-10000"
+new_model_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2_round2data"
+cache_path = "/remote-home/zyfei/project/tianchi/cache/nezha-base-4-30_v2_round2data"
 
 print(f"data path is {raw_text}, origin model is {model_name_or_path}, and trained model saved {new_model_path}, data cache is {cache_path}, tokenizer is {tokenizer_path}")
 
@@ -92,7 +94,7 @@ def load_data(data_tokenizer, raw_text_path):
     return LineByLineTextDataset(
         tokenizer=data_tokenizer,
         file_path=raw_text_path,
-        block_size=64  # maximum sequence length
+        block_size=32  # maximum sequence length
     )
 
 
@@ -118,10 +120,6 @@ for k, v in pretrained_dict.items():
 
 model.load_state_dict(model_dict)
 
-# model = NeZhaForPreTrainingWithLabel.from_pretrained(model_name_or_path, config=config)
-
-# model.resize_token_embeddings(tokenizer.vocab_size)
-
 dataset = load_data(data_tokenizer=tokenizer, raw_text_path=raw_text)
 
 tokenizer.save_pretrained(new_model_path)
@@ -139,11 +137,9 @@ training_args = TrainingArguments(
     output_dir=new_model_path,
     overwrite_output_dir=True,
     num_train_epochs=100,
-    per_device_train_batch_size=128,
+    per_device_train_batch_size=256,
     save_steps=10_000,
     learning_rate=5e-5,
-    max_steps=60000,
-    dataloader_num_workers=16
 )
 
 trainer = Trainer(

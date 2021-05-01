@@ -16,7 +16,7 @@ from transformers import BertTokenizer
 
 device = torch.device('cuda:0')  # if torch.cuda.is_available() else torch.device('cpu')
 
-model_name_or_path = "./nezha_base_v2_4_28_4"
+model_name_or_path = "./nezha_4_30_4"
 tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1"
 # tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/macbert_base_output_without_round1"
 
@@ -56,7 +56,7 @@ input_dict = (torch.tensor([sample.input_ids], device=device),
 input_names = ["input_ids", "token_type_ids", "co_ocurrence_ids"]
 output_names = ["logtis"]
 
-torch.onnx.export(model, input_dict, "nezha-4.onnx", verbose=True, input_names=input_names,
+torch.onnx.export(model, input_dict, "nezha_4_30_4.onnx", verbose=True, input_names=input_names,
                   output_names=output_names, dynamic_axes={'input_ids': {0: 'batch_size', 1: 'sequence'},
                                                            'token_type_ids': {0: 'batch_size', 1: 'sequence'},
                                                            'co_ocurrence_ids': {0: 'batch_size', 1: 'sequence'}},

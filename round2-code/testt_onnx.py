@@ -22,7 +22,7 @@ def to_numpy(tensor):
 
 device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
 
-model_name_or_path = "./nezha_base_v2_4_28_1"
+model_name_or_path = "./nezha_4_30_4.onnx"
 tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1"
 
 config = NeZhaConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
