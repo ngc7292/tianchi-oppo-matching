@@ -31,11 +31,11 @@ raw_text = '/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_output_with_label"
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/models/nezha-base-www"
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1_v3/checkpoint-30000"
-tokenizer_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2"
+tokenizer_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1"
 
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30"
 
-model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2/checkpoint-10000"
+model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1/checkpoint-50000"
 new_model_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2_round2data"
 cache_path = "/remote-home/zyfei/project/tianchi/cache/nezha-base-4-30_v2_round2data"
 
@@ -87,39 +87,53 @@ class LineByLineTextDataset(Dataset):
         }
         return result
 
+class LineByLineTextDataset_2(Dataset):
+    """
+    This dataset is
+    """
+
+    def __init__(self, tokenizer: PreTrainedTokenizer, file_path: str, block_size: int):
+
+        assert os.path.isfile(file_path), f"Input file path {file_path} not found"
+
+        lines_1 = []
+        lines_2 = []
+        with open(file_path, encoding="utf-8") as f:
+            # lines = [line for line in f.read().splitlines() if (len(line) > 0 and not line.isspace())]
+            for line in tqdm.tqdm(f.read().splitlines(), desc="loading data", leave=False):
+                if len(line) > 0 and not line.isspace():
+                    text1, text2, label = line.split("\t")
+                    lines_1.append(text1)
+                    lines_2.append(text2)
+
+        batch_encoding = tokenizer(text=lines_1, text_pair=lines_2, add_special_tokens=True, truncation=True,
+                                   max_length=block_size)
+
+        example_ids = batch_encoding["input_ids"]
+        example_tokens = batch_encoding["token_type_ids"]
+        self.examples = [
+            {"input_ids": torch.tensor(e, dtype=torch.long),
+             "token_type_ids": torch.tensor(t, dtype=torch.long)} for e, t in zip(example_ids, example_tokens)]
+
+    def __len__(self):
+        return len(self.examples)
+
+    def __getitem__(self, i) -> Dict[str, torch.tensor]:
+        return self.examples[i]
 
 # using cache_result increase speed of loadding data if want to change cache use _refresh=True
 @cache_results(_cache_fp=cache_path, _refresh=False)
 def load_data(data_tokenizer, raw_text_path):
-    return LineByLineTextDataset(
+    return LineByLineTextDataset_2(
         tokenizer=data_tokenizer,
         file_path=raw_text_path,
-        block_size=32  # maximum sequence length
+        block_size=64  # maximum sequence length
     )
 
 
 tokenizer = BertTokenizer.from_pretrained(tokenizer_path)
 
-# 转移权重
-config = NeZhaConfig.from_pretrained(model_name_or_path)
-config.vocab_size = tokenizer.vocab_size
-model = NeZhaForMaskedLM(config=config)
-# model.resize_token_embeddings(tokenizer.vocab_size)
-
-# pretrained_dict = torch.load("/remote-home/zyfei/project/tianchi/output/nezha-pretrained-round1/checkpoint-30000/pytorch_model.bin")
-# pretrained_model = NeZhaForPreTrainingWithLabel.from_pretrained(model_name_or_path)
-pretrained_model = NeZhaForMaskedLM.from_pretrained(model_name_or_path)
-pretrained_model.resize_token_embeddings(tokenizer.vocab_size)
-pretrained_dict = pretrained_model.state_dict()
-model_dict = model.state_dict()
-
-for k, v in pretrained_dict.items():
-    if k in model_dict:
-        if v.size() == model_dict[k].size():
-            model_dict[k] = v
-
-model.load_state_dict(model_dict)
-
+model = NeZhaForMaskedLM.from_pretrained(model_name_or_path)
 dataset = load_data(data_tokenizer=tokenizer, raw_text_path=raw_text)
 
 tokenizer.save_pretrained(new_model_path)
@@ -140,6 +154,8 @@ training_args = TrainingArguments(
     per_device_train_batch_size=256,
     save_steps=10_000,
     learning_rate=5e-5,
+    dataloader_num_workers=16,
+    fp16=True
 )
 
 trainer = Trainer(
