@@ -24,6 +24,7 @@ def send_eval(data_json, log):
         res = json.loads(res.text)
         # res = json.dumps(res_batch)
     except Exception as e:
+        print(e)
         index_list = data_json["index"]
 
         res_batch = {}

@@ -23,7 +23,7 @@ from sklearn.model_selection import StratifiedKFold
 # from sklearn.model_selection import StratifiedKFold
 # from sklearn.model_selection import train_test_split
 from modeling_nezha import NeZhaForSequenceClassificationWithHeadClass, NeZhaForSequenceClassificationWithHeadClassMD, \
-    NeZhaForSequenceClassificationWithClsCat
+    NeZhaForSequenceClassificationWithClsCat, NeZhaForSequenceClassificationWithClsCatForOnnx
 from configuration_nezha import NeZhaConfig
 from transformers import BertTokenizer
 
@@ -202,7 +202,7 @@ def train(model, attack_model, train_dataset, optimizer, device, epoch=0, epochs
                 loss, logits = model(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids,
                                      co_ocurrence_ids=co_ocurrence_ids, labels=labels)[:2]
                 loss.backward()
-                if epoch > 3:
+                if epoch > 2:
                     attack_model.backup_grad()
                     K = 3
                     for t in range(K):
@@ -216,11 +216,11 @@ def train(model, attack_model, train_dataset, optimizer, device, epoch=0, epochs
                         loss_adv.backward()  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
                     attack_model.restore()  # 恢复embedding参数
             elif attack_model.name == "freelb":
-                if epoch < 3:
+                if epoch < 0:
                     loss, logits = model(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids,
                                          co_ocurrence_ids=co_ocurrence_ids, labels=labels)[:2]
                     loss.backward()
-                elif epoch >= 3:
+                elif epoch >= 0:
                     # init delta
                     embeds_init = model.bert.embeddings(input_ids=input_ids, token_type_ids=token_type_ids,
                                                         co_ocurrence_ids=co_ocurrence_ids)
@@ -344,14 +344,16 @@ def run():
 
     args.add_argument("--train_path",
                       default="/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv")
-
+    args.add_argument("--checkpoint", default="nezha_base_output_4_30_v2_round2data/checkpoint-50000")
     args.add_argument("--epoches", type=int, default=10)
     args.add_argument("--batch_size", type=int, default=128)
     args.add_argument("--fold_name", default="./nezha_5_1_2")
     args.add_argument("--evalution_method", default="auc")
     args.add_argument("--attack_method", default="fgm")
     args.add_argument("--model_type", default="clscat")
-    args.add_argument("--n_splits", type=int, default=5)
+    args.add_argument("--n_splits", type=int, default=3)
+    args.add_argument("--classifier_dropout", default=None, type=float)
+    args.add_argument("--hidden_dropout", default=None, type=float)
 
     args = args.parse_args()
     train_path = args.train_path
@@ -377,10 +379,10 @@ def run():
     tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2_round2data"
 
     model_output_path = "/remote-home/zyfei/project/tianchi/model_output"
-    checkpoint = "nezha_base_output_4_30_v2_round2data/checkpoint-20000"
+    checkpoint = args.checkpoint
     model_name_or_path = os.path.join(model_output_path, checkpoint)
     fitlog.add_hyper(checkpoint, "model_name_or_path")
-    print("traing in checkpoint" + checkpoint)
+    print("traing in checkpoint " + checkpoint)
 
     tokenizer = BertTokenizer.from_pretrained(tokenizer_file)
 
@@ -406,6 +408,10 @@ def run():
         elif model_type == "clscat":
             # cat cls to classifier
             config = NeZhaConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
+            if args.classifier_dropout is not None:
+                config.classifier_dropout_prob = args.classifier_dropout
+            if args.hidden_dropout is not None:
+                config.hidden_dropout_prob = args.hidden_dropout
             model = NeZhaForSequenceClassificationWithClsCat.from_pretrained(model_name_or_path, config=config)
         else:
             raise NotImplementedError
@@ -416,10 +422,11 @@ def run():
 
         if args.attack_method == "fgm":
             attack_model = FGM(model)
-            model.set_attack()
         elif args.attack_method == "pgd":
             attack_model = PGD(model)
             model.set_attack()
+        elif args.attack_method == "pgd-md":
+            attack_model = PGD(model)
         elif args.attack_method == "freelb":
             attack_model = FreeLB()
             model.set_attack()
@@ -453,6 +460,7 @@ def run():
         dev_dataset.set_target("label")
 
         best_result = 0
+        best_model = None
         current_fold_path = os.path.join(fold_path, f'fold_co_{fold + 1}')
         for i in range(epochs):
             train(model, attack_model, train_dataset, optimizer, device, i, epochs, batch_size)
@@ -466,9 +474,31 @@ def run():
 
             if result > best_result:
                 best_result = result
+                best_model = model
                 model.save_pretrained(current_fold_path)
                 # torch.save(model.state_dict(), current_fold_path)
         print(f'fold:{fold + 1}, best test result:{best_result}')
+
+        onnx_file = os.path.join(fold_path, f"model-{str(fold)}.onnx")
+
+        input_dict = (torch.tensor([train_input_ids[0]], device=device),
+                      {
+                          'token_type_ids': torch.tensor([train_token_type_ids[0]], device=device),
+                          'co_ocurrence_ids': torch.tensor([train_co_ocurrence_ids[0]], device=device)
+                      })
+
+        input_names = ["input_ids", "token_type_ids", "co_ocurrence_ids"]
+        output_names = ["logtis"]
+
+        onnx_model = NeZhaForSequenceClassificationWithClsCatForOnnx.from_pretrained(current_fold_path)
+        onnx_model.to(device)
+
+        torch.onnx.export(onnx_model, input_dict, onnx_file, verbose=True, input_names=input_names,
+                          output_names=output_names, dynamic_axes={'input_ids': {0: 'batch_size', 1: 'sequence'},
+                                                                   'token_type_ids': {0: 'batch_size', 1: 'sequence'},
+                                                                   'co_ocurrence_ids': {0: 'batch_size',
+                                                                                        1: 'sequence'}},
+                          opset_version=10)
 
         fitlog.add_best_metric(str(best_result), f"fold-{fold + 1} {evalution_method}")
 

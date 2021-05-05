@@ -6,22 +6,19 @@ __mtime__="2021/4/21"
 """
 import torch
 import torch.onnx
-from modeling_nezha import NeZhaForSequenceClassificationWithHeadClass, NeZhaForSequenceClassificationWithClsCat, \
-    NeZhaForSequenceClassificationWithHeadClassMD
+from modeling_nezha import NeZhaForSequenceClassificationWithClsCatForOnnx
 from configuration_nezha import NeZhaConfig
-
-from modeling_bert import BertConfig, BertForSequenceClassificationWithClsCat
 
 from transformers import BertTokenizer
 
 device = torch.device('cuda:0')  # if torch.cuda.is_available() else torch.device('cpu')
 
-model_name_or_path = "./nezha_4_30_4"
-tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1"
+model_name_or_path = "/remote-home/zyfei/project/tianchi/round2-code/nezha_5_2_3/fold_co_1"
+tokenizer_file = "/remote-home/zyfei/project/tianchi/round2-code/nezha_5_2_3"
 # tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/macbert_base_output_without_round1"
 
 config = NeZhaConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
-model = NeZhaForSequenceClassificationWithClsCat.from_pretrained(model_name_or_path, config=config)
+model = NeZhaForSequenceClassificationWithClsCatForOnnx.from_pretrained(model_name_or_path, config=config)
 
 # config = BertConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
 # model = BertForSequenceClassificationWithClsCat.from_pretrained(model_name_or_path, config=config)
@@ -56,7 +53,7 @@ input_dict = (torch.tensor([sample.input_ids], device=device),
 input_names = ["input_ids", "token_type_ids", "co_ocurrence_ids"]
 output_names = ["logtis"]
 
-torch.onnx.export(model, input_dict, "nezha_4_30_4.onnx", verbose=True, input_names=input_names,
+torch.onnx.export(model, input_dict, "test.onnx", verbose=True, input_names=input_names,
                   output_names=output_names, dynamic_axes={'input_ids': {0: 'batch_size', 1: 'sequence'},
                                                            'token_type_ids': {0: 'batch_size', 1: 'sequence'},
                                                            'co_ocurrence_ids': {0: 'batch_size', 1: 'sequence'}},

@@ -409,7 +409,7 @@ def run():
     tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2_round2data"
 
     epochs = args.epoches
-    lr = 1e-5
+    lr = 5e-5
     batch_size = args.batch_size
     fold_path = args.fold_name
     evalution_method = args.evalution_method
@@ -469,7 +469,6 @@ def run():
 
     if args.attack_method == "fgm":
         attack_model = FGM(model)
-        model.set_attack()
     elif args.attack_method == "pgd":
         attack_model = PGD(model)
         model.set_attack()

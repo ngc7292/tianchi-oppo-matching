@@ -106,14 +106,14 @@ class DataCollatorForLanguageModelingNgram:
         # We sample a few tokens in each sequence for MLM training (with probability `self.mlm_probability`)
         probability_matrix = torch.full(labels.shape, self.mlm_probability)
         # 是否变成2-gram。 0.4
-        ngram_matrix = torch.full(labels.shape, 0.4)
+        ngram_matrix = torch.full(labels.shape, 0.6)
         if special_tokens_mask is None:
-            # special_tokens_mask = [
-            #     self.tokenizer.get_special_tokens_mask(val, already_has_special_tokens=True) for val in labels.tolist()
-            # ]
             special_tokens_mask = [
-                get_special_tokens_mask(self.tokenizer, val, already_has_special_tokens=True) for val in labels.tolist()
+                self.tokenizer.get_special_tokens_mask(val, already_has_special_tokens=True) for val in labels.tolist()
             ]
+            # special_tokens_mask = [
+            #     get_special_tokens_mask(self.tokenizer, val, already_has_special_tokens=True) for val in labels.tolist()
+            # ]
             special_tokens_mask = torch.tensor(special_tokens_mask, dtype=torch.bool)
         else:
             special_tokens_mask = special_tokens_mask.bool()
@@ -142,9 +142,9 @@ class DataCollatorForLanguageModelingNgram:
         inputs[indices_replaced] = self.tokenizer.convert_tokens_to_ids(self.tokenizer.mask_token)
 
         # 10% of the time, we replace masked input tokens with random word
-        # indices_random = torch.bernoulli(torch.full(labels.shape, 0.5)).bool() & masked_indices & ~indices_replaced
-        # random_words = torch.randint(len(self.tokenizer), labels.shape, dtype=torch.long)
-        # inputs[indices_random] = random_words[indices_random]
+        indices_random = torch.bernoulli(torch.full(labels.shape, 0.5)).bool() & masked_indices & ~indices_replaced
+        random_words = torch.randint(len(self.tokenizer), labels.shape, dtype=torch.long)
+        inputs[indices_random] = random_words[indices_random]
 
         # The rest of the time (10% of the time) we keep the masked input tokens unchanged
         return inputs, labels

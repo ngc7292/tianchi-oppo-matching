@@ -31,12 +31,12 @@ raw_text_clean = '/remote-home/zyfei/project/tianchi/round2-code/data/train_clea
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_output_with_label"
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/models/nezha-base-www"
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1_v3/checkpoint-30000"
-tokenizer_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_5_2_v3_clean_round2data/checkpoint-20000"
+tokenizer_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_5_3_clean_round2data_2"
 
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30"
 
-model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_5_2_v3_clean_round2data/checkpoint-20000"
-new_model_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_5_3_clean_round2data"
+model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_5_3_clean_round2data_2/checkpoint-40000"
+new_model_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_5_3_clean_round2data_3"
 
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2_round2data/checkpoint-20000"
 # new_model_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2_round2data_1"
@@ -166,38 +166,13 @@ data_collator = DataCollatorForLanguageModelingNgram(
     data_tokenizer=tokenizer, mlm=True, mlm_probability=0.15
 )
 
-training_args = TrainingArguments(
-    output_dir=new_model_path,
-    overwrite_output_dir=True,
-    num_train_epochs=300,
-    per_device_train_batch_size=256,
-    save_steps=10_000,
-    learning_rate=5e-5,
-    max_steps=10000,
-    dataloader_num_workers=16,
-    fp16=True
-)
-
-trainer = Trainer(
-    model=model,
-    args=training_args,
-    data_collator=data_collator,
-    train_dataset=dataset_clean,
-    tokenizer=tokenizer
-)
-
-print("*" * 35)
-print("traing...")
-trainer.train()
-
 training_args_2 = TrainingArguments(
     output_dir=new_model_path,
     overwrite_output_dir=True,
-    num_train_epochs=300,
+    num_train_epochs=150,
     per_device_train_batch_size=256,
     save_steps=10_000,
     learning_rate=5e-5,
-    max_steps=60000,
     dataloader_num_workers=16,
     fp16=True
 )
@@ -212,6 +187,6 @@ trainer = Trainer(
 
 print("*" * 35)
 print("traing...")
-trainer.train(resume_from_checkpoint=True)
+trainer.train()
 
 trainer.save_model(new_model_path)
