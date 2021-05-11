@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=2 python fineturning.py --fold_name ./nezha_5_5_10 --checkpoint nezha_base_output_5_3_clean_round2data_3 --attack_method clscat --epoches 10 --batch_size 256 --classifier_dropout 0.1 --weight_decay 0.1 --num_warmup_steps 10
