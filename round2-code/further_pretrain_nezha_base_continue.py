@@ -16,7 +16,7 @@ from transformers import BertTokenizer, PreTrainedTokenizer
 from torch.utils.data.dataset import Dataset
 from modeling_nezha import NeZhaForMaskedLM, NeZhaForPreTrainingWithLabel
 from configuration_nezha import NeZhaConfig
-from transformers import Trainer, TrainingArguments
+from transformers import Trainer, TrainingArguments, get_scheduler
 
 from transformers import AlbertForSequenceClassification
 from DataCollator import DataCollatorForLanguageModelingNgram
@@ -35,8 +35,8 @@ tokenizer_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_out
 
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30"
 
-model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_5_3_clean_round2data_2/checkpoint-40000"
-new_model_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_5_3_clean_round2data_3"
+model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_5_3_clean_round2data_3/checkpoint-50000"
+new_model_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_5_3_clean_round2data_4"
 
 # model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2_round2data/checkpoint-20000"
 # new_model_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2_round2data_1"
@@ -169,7 +169,7 @@ data_collator = DataCollatorForLanguageModelingNgram(
 training_args_2 = TrainingArguments(
     output_dir=new_model_path,
     overwrite_output_dir=True,
-    num_train_epochs=150,
+    num_train_epochs=100,
     per_device_train_batch_size=256,
     save_steps=10_000,
     learning_rate=5e-5,

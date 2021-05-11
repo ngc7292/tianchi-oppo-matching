@@ -53,9 +53,9 @@ def load_data_fastnlp(path):
 
 
 if __name__ == '__main__':
-    # train_path = "/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv"
+    train_path = "/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv"
     # train_path = "/remote-home/zyfei/project/tianchi/data/gaiic_track3_round1_train_20210228.tsv"
-    train_path = "./data/dev.tsv"
+    # train_path = "./data/dev.tsv"
 
     samples, labels = load_data_fastnlp(train_path)
 

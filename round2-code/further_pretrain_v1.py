@@ -21,31 +21,20 @@ from transformers import Trainer, TrainingArguments
 from transformers import AlbertForSequenceClassification
 from DataCollator import DataCollatorForLanguageModelingNgram
 
-# vocab_file = './nezha_base_vocab.txt'  # vocab file
 
-# raw_text = './data/train_true.tsv'  # line by line file
-# raw_text = '/remote-home/zyfei/project/tianchi/data/gaiic_track3_round1_train_20210228.tsv'
 raw_text = '/remote-home/zyfei/project/tianchi/data/gaiic_track3_round2_train_20210407.tsv'
-raw_text_clean = '/remote-home/zyfei/project/tianchi/round2-code/data/train_clean.tsv'
-# model_name_or_path = "/remote-home/zyfei/project/tianchi/output/nezha-pretrained-round1/checkpoint-30000"
-# model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_output_with_label"
-# model_name_or_path = "/remote-home/zyfei/project/tianchi/models/nezha-base-www"
-# model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1_v3/checkpoint-30000"
+
+nezha_model_1 = "/remote-home/zyfei/project/tianchi/models/nezha-base-www"
+nezha_model_2 = ""
+roberta_model_1 = ""
+
 tokenizer_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_5_2_v3_clean_round2data/checkpoint-20000"
+new_model_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_5_6"
 
-# model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30"
-
-model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_5_2_v3_clean_round2data/checkpoint-20000"
-new_model_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_5_3_clean_round2data"
-
-# model_name_or_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2_round2data/checkpoint-20000"
-# new_model_path = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_4_30_v2_round2data_1"
-
-cache_path_clean = "/remote-home/zyfei/project/tianchi/cache/nezha-base-5-2_v2_cleandata"
-cache_path_2 = "/remote-home/zyfei/project/tianchi/cache/nezha-base-5-2_v2_round2data"
+cache_path = "/remote-home/zyfei/project/tianchi/cache/nezha-base-5-6"
 
 print(
-    f"data path is {raw_text}, origin model is {model_name_or_path}, and trained model saved {new_model_path}, data cache is {cache_path_clean}, {cache_path_2}, tokenizer is {tokenizer_path}")
+    f"data path is {raw_text}, origin model is {model_name_or_path}, and trained model saved {new_model_path}, data cache is {cache_path}, tokenizer is {tokenizer_path}")
 
 
 class LineByLineTextDataset(Dataset):
@@ -67,14 +56,12 @@ class LineByLineTextDataset(Dataset):
                     lines_1.append(text1)
                     lines_2.append(text2)
 
+                    lines_1.append(text2)
+                    lines_2.append(text1)
+
         self.tokenizer = tokenizer
         self.block_size = block_size
 
-        # batch_encoding = tokenizer(text=lines_1, text_pair=lines_2, add_special_tokens=True, truncation=True,
-        #                            max_length=block_size)
-        #
-        # example_ids = batch_encoding["input_ids"]
-        # example_tokens = batch_encoding["token_type_ids"]
         self.examples = [
             {"text_1": e,
              "text_2": t} for e, t in zip(lines_1, lines_2)]
@@ -131,17 +118,8 @@ class LineByLineTextDataset_2(Dataset):
 
 
 # using cache_result increase speed of loadding data if want to change cache use _refresh=True
-@cache_results(_cache_fp=cache_path_clean, _refresh=False)
+@cache_results(_cache_fp=cache_path, _refresh=False)
 def load_data(data_tokenizer, raw_text_path):
-    return LineByLineTextDataset(
-        tokenizer=data_tokenizer,
-        file_path=raw_text_path,
-        block_size=64  # maximum sequence length
-    )
-
-
-@cache_results(_cache_fp=cache_path_2, _refresh=False)
-def load_data_2(data_tokenizer, raw_text_path):
     return LineByLineTextDataset(
         tokenizer=data_tokenizer,
         file_path=raw_text_path,
@@ -153,8 +131,8 @@ tokenizer = BertTokenizer.from_pretrained(tokenizer_path)
 
 model = NeZhaForMaskedLM.from_pretrained(model_name_or_path)
 model.resize_token_embeddings(tokenizer.vocab_size)
-dataset_clean = load_data(data_tokenizer=tokenizer, raw_text_path=raw_text_clean)
-dataset = load_data_2(data_tokenizer=tokenizer, raw_text_path=raw_text)
+dataset = load_data(data_tokenizer=tokenizer, raw_text_path=raw_text)
+# dataset = load_data_2(data_tokenizer=tokenizer, raw_text_path=raw_text)
 tokenizer.save_pretrained(new_model_path)
 
 random_seed = 42
@@ -173,8 +151,9 @@ training_args = TrainingArguments(
     per_device_train_batch_size=256,
     save_steps=10_000,
     learning_rate=5e-5,
-    max_steps=10000,
     dataloader_num_workers=16,
+    weight_decay=0.01,
+    lr_scheduler_type="cosine",
     fp16=True
 )
 
@@ -182,36 +161,12 @@ trainer = Trainer(
     model=model,
     args=training_args,
     data_collator=data_collator,
-    train_dataset=dataset_clean,
-    tokenizer=tokenizer
-)
-
-print("*" * 35)
-print("traing...")
-trainer.train()
-
-training_args_2 = TrainingArguments(
-    output_dir=new_model_path,
-    overwrite_output_dir=True,
-    num_train_epochs=300,
-    per_device_train_batch_size=256,
-    save_steps=10_000,
-    learning_rate=5e-5,
-    max_steps=60000,
-    dataloader_num_workers=16,
-    fp16=True
-)
-
-trainer = Trainer(
-    model=model,
-    args=training_args_2,
-    data_collator=data_collator,
     train_dataset=dataset,
     tokenizer=tokenizer
 )
 
 print("*" * 35)
 print("traing...")
-trainer.train(resume_from_checkpoint=True)
+trainer.train()
 
 trainer.save_model(new_model_path)

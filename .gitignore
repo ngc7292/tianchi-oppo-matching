@@ -105,5 +105,12 @@ fabric.properties
 # https://plugins.jetbrains.com/plugin/12206-codestream
 .idea/codestream.xml
 round2_project_v1/
+
+origin_model/
+onnx_models/
+model_output/
+tcdata/
+data/
+model/
 # End of https://www.toptal.com/developers/gitignore/api/pycharm
 n

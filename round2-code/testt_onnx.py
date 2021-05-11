@@ -22,14 +22,17 @@ def to_numpy(tensor):
 
 device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
 
-model_name_or_path = "./nezha_4_30_4.onnx"
-tokenizer_file = "/remote-home/zyfei/project/tianchi/model_output/nezha_base_output_without_round1"
+onnx_1 = "/remote-home/zyfei/project/tianchi/round2-code/nezha_5_4_2/model-0.onnx"
 
-config = NeZhaConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
-model = NeZhaForSequenceClassificationWithClsCat.from_pretrained(model_name_or_path, config=config)
+onnx_2 = "/remote-home/zyfei/project/tianchi/round2-code/nezha_5_5_6/model-0.onnx"
+
+tokenizer_file = "/remote-home/zyfei/project/tianchi/round2-code/nezha_5_4_2"
+
+# config = NeZhaConfig.from_pretrained(model_name_or_path, output_hidden_states=True)
+# model = NeZhaForSequenceClassificationWithClsCat.from_pretrained(model_name_or_path, config=config)
 
 tokenizer = BertTokenizer.from_pretrained(tokenizer_file)
-model.to(device)
+# model.to(device)
 
 text_1 = "1 2 3 4 5 6 7"
 text_2 = "8 9 10 4 11"
@@ -46,7 +49,9 @@ input_ids = torch.tensor([sample.input_ids], device=device)
 token_type_ids = torch.tensor([sample.token_type_ids], device=device)
 co_ocurrence_ids = torch.tensor([co_ocurrence_list], device=device)
 
-ort_session = onnxruntime.InferenceSession("nezha-1.onnx")
+ort_session = onnxruntime.InferenceSession(onnx_1)
+ort_session_2 = onnxruntime.InferenceSession(onnx_2)
+
 
 ort_inputs = {ort_session.get_inputs()[0].name: to_numpy(input_ids),
               ort_session.get_inputs()[1].name: to_numpy(token_type_ids),
@@ -58,12 +63,19 @@ output_score = np.exp(output) / (np.exp(output).sum(axis=1, keepdims=True))
 ort_result = output_score[:, 1] / output_score.sum(axis=1)
 print(time.time() - start_time)
 
-start_time = time.time()
-output = model(input_ids, token_type_ids=token_type_ids, co_ocurrence_ids=co_ocurrence_ids)[0]
-output = output.detach().cpu().numpy()
-output_score = np.exp(output) / (np.exp(output).sum(axis=1, keepdims=True))
-result = output_score[:, 1] / output_score.sum(axis=1)
-print(time.time() - start_time)
-
 print(ort_result)
-print(result)
+
+print("-"*35)
+
+start_time = time.time()
+output = ort_session_2.run(None, ort_inputs)[0]
+output_score = np.exp(output) / (np.exp(output).sum(axis=1, keepdims=True))
+ort_result = output_score[:, 1] / output_score.sum(axis=1)
+print(time.time() - start_time)
+print(ort_result)
+# start_time = time.time()
+# output = model(input_ids, token_type_ids=token_type_ids, co_ocurrence_ids=co_ocurrence_ids)[0]
+# output = output.detach().cpu().numpy()
+# output_score = np.exp(output) / (np.exp(output).sum(axis=1, keepdims=True))
+# result = output_score[:, 1] / output_score.sum(axis=1)
+# print(time.time() - start_time)

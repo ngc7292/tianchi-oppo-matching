@@ -94,7 +94,18 @@ CUDA_VISIBLE_DEVICES=2 python fineturning_nezha_base_k_fold.py --fold_name ./nez
 
 CUDA_VISIBLE_DEVICES=3 python fineturning_nezha_base_k_fold.py --fold_name ./nezha_5_5_4 --checkpoint nezha_base_output_5_3_clean_round2data_3 --attack_method fgm --epoches 10 --batch_size 256
 
-CUDA_VISIBLE_DEVICES=2 python fineturning_nezha_base_k_fold.py --fold_name ./nezha_5_5_5 --checkpoint nezha_base_output_5_3_clean_round2data_3 --attack_method fgm --epoches 10 --batch_size 256 --classifier_dropout 0.3
+CUDA_VISIBLE_DEVICES=0 python fineturning_nezha_base_k_fold.py --fold_name ./nezha_5_5_6 --checkpoint nezha_base_output_5_3_clean_round2data_3 --attack_method mutildrop --epoches 10 --batch_size 256 --classifier_dropout 0.1
+
+CUDA_VISIBLE_DEVICES=1 python fineturning_nezha_base_k_fold.py --fold_name ./nezha_5_5_6 --checkpoint nezha_base_output_5_3_clean_round2data_3 --attack_method mutildrop --epoches 10 --batch_size 256 --classifier_dropout 0
+
+CUDA_VISIBLE_DEVICES=2 python fineturning_nezha_base_k_fold.py --fold_name ./nezha_5_5_8 --checkpoint nezha_base_output_5_3_clean_round2data_3 --attack_method mutildrop --epoches 10 --batch_size 256 --classifier_dropout 0.1 --
+
+
+CUDA_VISIBLE_DEVICES=5 python fineturning_nezha_base_k_fold.py --fold_name ./nezha_5_5_7 --checkpoint nezha_base_output_5_3_clean_round2data_3 --attack_method mutildrop --epoches 10 --batch_size 64 --classifier_dropout 0.1
+
+
+CUDA_VISIBLE_DEVICES=0 python fineturning_nezha_base_k_fold.py --fold_name ./nezha_5_6_1 --checkpoint nezha_base_output_5_3_clean_round2data_4 --attack_method mutildrop --epoches 10 --batch_size 64 --classifier_dropout 0.2
+CUDA_VISIBLE_DEVICES=0 python fineturning_nezha_base_k_fold.py --fold_name ./nezha_5_6_2 --checkpoint nezha_base_output_5_3_clean_round2data_4 --attack_method clscat --epoches 10 --batch_size 256 --classifier_dropout 0.2
 
 
 2.1 v1 origin_model nezha_base_output_4_30_v2_round2/checkpoint-20000
